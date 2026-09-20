@@ -54,13 +54,15 @@ DSH Web 会沿对话区边缘画一条轮次轨道：每轮对话一枚刻度，
 
 **第二步 — 把 bundle 装进你的 profile**
 
-`dsh plugin` 会把参数转发给 profile 目录里的 pnpm，于是这个 bundle 被登记为依赖，DSH 会自动读到它的 patch。如果你的 profile 不叫 `web`，换成你自己的名字。
+`dsh plugin` 会把参数转发给 profile 目录里的 pnpm，于是这个包会从 npm 装上，DSH 自动读到它的 patch。如果你的 profile 不叫 `web`，换成你自己的名字。
 
 ```bash
-dsh plugin --profile web add github:hawkongz/dsh-chat-locator
+dsh plugin --profile web add dsh-chat-locator
 ```
 
-装完就完了。这一条命令取回一个 DSH 插件 bundle 需要的四个文件 —— `package.json`（声明 bundle 与浏览器半侧）、`index.js`（宿主半侧）、`client.js`（浏览器半侧）、`cordis.patch.yml`（把插件行插进配置树的 patch）—— 没有东西要编译，也没有依赖要装。
+想锁死某个版本、不跟新版本走，就带上版本号：`dsh plugin --profile web add dsh-chat-locator@1.2.0`
+
+装完就完了。这个包就是一个 DSH 插件 bundle 需要的四个文件 —— `package.json`（声明 bundle 与浏览器半侧）、`index.js`（宿主半侧）、`client.js`（浏览器半侧）、`cordis.patch.yml`（把插件行插进配置树的 patch）—— 没有东西要编译，也没有依赖要装。
 
 **第三步 — 重启宿主**
 
@@ -83,7 +85,7 @@ __dshChatLocator.state()
 
 > 以后想更新：执行 `dsh plugin --profile web update dsh-chat-locator`，再重启宿主。卸载：`dsh plugin --profile web remove dsh-chat-locator`，然后重启宿主。
 >
-> **想离线安装，或者要一份可以自己改的本地副本？** 改为下载那四个文件、装本地文件夹 —— 见[不用 git 安装](#不用-git-安装)。
+> **想跟仓库最新代码、要一份能自己改的本地副本，或者要离线安装？** 见[安装方式](#安装方式)。
 
 ## 📦 安装
 
@@ -99,9 +101,10 @@ __dshChatLocator.state()
 
 | 方式 | 适合谁 |
 | :--- | :--- |
-| `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | 大多数人。一条命令，快速开始用的就是它。 |
-| 用 git clone 安装 | 要锁某个版本，或者想改这个插件。 |
-| 下载四个文件后安装 | 机器上没有 git，或者要离线安装。 |
+| `dsh plugin --profile web add dsh-chat-locator` | 大多数人。从 npm 装已发布的版本；带 `@1.2.0` 可以锁死具体版本。 |
+| `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | 想直接跟 `main` 上最新提交、又不想手动 clone。锁的是 commit，不是版本号。 |
+| [用 git clone 安装](#用-git-clone-安装) | 要改这个插件本身。 |
+| [下载四个文件后安装](#不用-git-安装) | 访问不到 npm 或 GitHub，或者要离线安装。 |
 
 ### 用 git clone 安装
 

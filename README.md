@@ -54,13 +54,15 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 
 **Step 2 — Install the bundle into your profile**
 
-`dsh plugin` forwards its arguments to pnpm inside the profile directory, so this registers the bundle as a dependency and DSH picks up its patch automatically. Replace `web` with your own profile name if it differs.
+`dsh plugin` forwards its arguments to pnpm inside the profile directory, so this installs the package from npm and DSH picks up its patch automatically. Replace `web` with your own profile name if it differs.
 
 ```bash
-dsh plugin --profile web add github:hawkongz/dsh-chat-locator
+dsh plugin --profile web add dsh-chat-locator
 ```
 
-That is the whole install. It fetches the four files a DSH plugin bundle needs — `package.json` (which declares the bundle and the browser half), `index.js` (the host half), `client.js` (the browser half), and `cordis.patch.yml` (the patch that adds the plugin row) — and there is nothing to compile and no dependency to install.
+To pin an exact version instead of tracking new releases, append it: `dsh plugin --profile web add dsh-chat-locator@1.2.0`
+
+That is the whole install. The package is the four files a DSH plugin bundle needs — `package.json` (which declares the bundle and the browser half), `index.js` (the host half), `client.js` (the browser half), and `cordis.patch.yml` (the patch that adds the plugin row) — and there is nothing to compile and no dependency to install.
 
 **Step 3 — Restart the host**
 
@@ -83,7 +85,7 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 
 > To update: run `dsh plugin --profile web update dsh-chat-locator`, then restart the host. To uninstall: `dsh plugin --profile web remove dsh-chat-locator`, then restart the host.
 >
-> **Installing offline, or want a local copy you can edit?** Download the four files instead and install the folder — see [Install without git](#install-without-git).
+> **Want the newest unreleased commit, a local copy you can edit, or an offline install?** See [Install methods](#install-methods).
 
 ## 📦 Installation
 
@@ -99,9 +101,10 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 
 | Method | Best for |
 | :--- | :--- |
-| `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | Most users. One command, and it is what the Quick Start uses. |
-| From a git clone | Pinning a revision, or working on the plugin itself. |
-| From four downloaded files | No git available, or an offline machine. |
+| `dsh plugin --profile web add dsh-chat-locator` | Most users. Installs the released version from npm; append `@1.2.0` to pin an exact one. |
+| `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | The newest commit on `main`, without cloning by hand. Locks a commit rather than a version. |
+| [From a git clone](#install-from-a-git-clone) | Working on the plugin itself. |
+| [From four downloaded files](#install-without-git) | No network access to npm or GitHub, or an offline machine. |
 
 ### Install from a git clone
 

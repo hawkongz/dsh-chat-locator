@@ -114,6 +114,34 @@ height, a default, a range), update **all** of these in the same pull request:
 The test suite intentionally asserts on exact numbers such as `[32, 21, 14]`. A failing
 assertion after a deliberate change is expected; update the number, do not loosen the check.
 
+## Releasing
+
+The package is published to npm, which is what makes `dsh plugin --profile web add dsh-chat-locator` work for users.
+
+1. Confirm the working tree is clean and `node test/verify-client.mjs` passes.
+2. Bump `version` in `package.json` following semantic versioning.
+3. Update every document that mentions the changed values (see the section above).
+4. Commit, tag, and push:
+
+```bash
+git commit -am "chore: release v1.2.1"
+git tag -a v1.2.1 -m "v1.2.1"
+git push origin main --follow-tags
+```
+
+5. Publish and verify that the registry really has it:
+
+```bash
+npm publish
+npm view dsh-chat-locator version
+```
+
+`publishConfig.registry` in `package.json` pins publishing to the official npm registry, so a mirror configured locally (for example `registry.npmmirror.com`) cannot intercept the upload. There is no build step, and npm adds `LICENSE` and `README.md` to the tarball on top of the `files` list.
+
+6. Create the GitHub release for the tag, with the changelog as the body.
+
+A published version cannot be replaced — npm rejects republishing an existing version — so a mistake in a release needs a new patch version rather than a re-upload.
+
 ## Commit message convention
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/).
