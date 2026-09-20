@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Design notes and known boundaries
+    url: https://github.com/hawkongz/dsh-chat-locator/blob/main/docs/design-notes.md
+    about: Why the plugin injects CSS instead of re-rendering the rail, and what breaks when upstream renames a class.
+  - name: Settings reference
+    url: https://github.com/hawkongz/dsh-chat-locator/blob/main/README.md#-usage
+    about: Every setting, its default, its range, and what it changes on screen.

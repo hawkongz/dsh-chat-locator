@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+out/
+*.tgz
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.*
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+logs/
+
+# Temp files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# Operating systems
+.DS_Store
+Thumbs.db
+desktop.ini

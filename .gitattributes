@@ -1,0 +1,4 @@
+# Normalize all text files to LF in the repository, regardless of the
+# contributor's platform or core.autocrlf setting. The plugin's two halves and
+# its test suite are plain ESM read directly by Node and the browser.
+* text=auto eol=lf
