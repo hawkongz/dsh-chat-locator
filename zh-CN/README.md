@@ -52,49 +52,17 @@ DSH Web 会沿对话区边缘画一条轮次轨道：每轮对话一枚刻度，
 - macOS / Linux：打开终端（Terminal）。
 - Windows：按 `Win + R`，输入 `powershell`，回车。
 
-**第二步 — 只下载插件真正需要的四个文件**
+**第二步 — 把 bundle 装进你的 profile**
 
-一个 DSH 插件 bundle 就是四个文件：`package.json`（声明 bundle 与浏览器半侧）、`index.js`（宿主半侧）、`client.js`（浏览器半侧）、`cordis.patch.yml`（把插件行插进配置树的 patch）。README、LICENSE、测试与文档是给 GitHub 访客和贡献者看的 —— 插件不读它们，所以不需要下载。
-
-macOS / Linux：
+`dsh plugin` 会把参数转发给 profile 目录里的 pnpm，于是这个 bundle 被登记为依赖，DSH 会自动读到它的 patch。如果你的 profile 不叫 `web`，换成你自己的名字。
 
 ```bash
-mkdir -p ~/.dsh/plugin-src/dsh-chat-locator
-cd ~/.dsh/plugin-src/dsh-chat-locator
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/package.json
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/index.js
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/client.js
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/cordis.patch.yml
+dsh plugin --profile web add github:hawkongz/dsh-chat-locator
 ```
 
-Windows（PowerShell）：
+装完就完了。这一条命令取回一个 DSH 插件 bundle 需要的四个文件 —— `package.json`（声明 bundle 与浏览器半侧）、`index.js`（宿主半侧）、`client.js`（浏览器半侧）、`cordis.patch.yml`（把插件行插进配置树的 patch）—— 没有东西要编译，也没有依赖要装。
 
-```powershell
-$dir  = "$env:USERPROFILE\.dsh\plugin-src\dsh-chat-locator"
-$base = "https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main"
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-foreach ($file in "package.json", "index.js", "client.js", "cordis.patch.yml") {
-  Invoke-WebRequest -Uri "$base/$file" -OutFile "$dir\$file"
-}
-```
-
-**第三步 — 把 bundle 装进你的 profile**
-
-`dsh plugin` 会把参数转发给 profile 目录里的 pnpm，于是这个文件夹被登记为依赖，DSH 会自动读到它的 patch。如果你的 profile 不叫 `web`，换成你自己的名字。
-
-macOS / Linux：
-
-```bash
-dsh plugin --profile web add ~/.dsh/plugin-src/dsh-chat-locator
-```
-
-Windows（PowerShell）：
-
-```powershell
-dsh plugin --profile web add "$env:USERPROFILE\.dsh\plugin-src\dsh-chat-locator"
-```
-
-**第四步 — 重启宿主**
+**第三步 — 重启宿主**
 
 ```bash
 dsh web
@@ -102,7 +70,7 @@ dsh web
 
 宿主进程会缓存已导入的模块，所以新装的 bundle 要等宿主重启一次才会挂载。
 
-**第五步 — 完成。** 打开 DSH Web（`http://127.0.0.1:3080`），满足下面两条就算装好了：
+**第四步 — 完成。** 打开 DSH Web（`http://127.0.0.1:3080`），满足下面两条就算装好了：
 
 - 设置侧栏里出现了 **对话定位条**；
 - 在一个至少两轮的对话里，浏览器控制台执行下面这行返回 `railFound: true`：
@@ -113,7 +81,9 @@ __dshChatLocator.state()
 
 打开任意对话，把指针沿轨道上下滑一次：指针下那根会变长，两侧依次收回。
 
-> 以后想更新：重跑第二步，再重启宿主。卸载：`dsh plugin --profile web remove dsh-chat-locator`，然后重启宿主。
+> 以后想更新：执行 `dsh plugin --profile web update dsh-chat-locator`，再重启宿主。卸载：`dsh plugin --profile web remove dsh-chat-locator`，然后重启宿主。
+>
+> **想离线安装，或者要一份可以自己改的本地副本？** 改为下载那四个文件、装本地文件夹 —— 见[不用 git 安装](#不用-git-安装)。
 
 ## 📦 安装
 
@@ -124,6 +94,14 @@ __dshChatLocator.state()
 | DSH | 11.x | 提供 `dsh` 命令，以及你要装进去的那个 profile。 |
 | Node.js | 20 或更新 | 宿主半侧与测试套件用它。 |
 | 支持 `:has()` 的浏览器 | Chromium 105+ | 不支持时只是长度渐变不生效，其余功能照常。 |
+
+### 安装方式
+
+| 方式 | 适合谁 |
+| :--- | :--- |
+| `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | 大多数人。一条命令，快速开始用的就是它。 |
+| 用 git clone 安装 | 要锁某个版本，或者想改这个插件。 |
+| 下载四个文件后安装 | 机器上没有 git，或者要离线安装。 |
 
 ### 用 git clone 安装
 
@@ -136,8 +114,43 @@ dsh plugin --profile web add "$(pwd)"
 dsh web
 ```
 
+### 不用 git 安装
+
+一个 bundle 就是四个文件。把它们下到一个文件夹里、装这个文件夹、重启宿主，除此之外没有别的步骤。
+
+macOS / Linux：
+
+```bash
+mkdir -p ~/.dsh/plugin-src/dsh-chat-locator
+cd ~/.dsh/plugin-src/dsh-chat-locator
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/package.json
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/index.js
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/client.js
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/cordis.patch.yml
+dsh plugin --profile web add ~/.dsh/plugin-src/dsh-chat-locator
+```
+
+Windows（PowerShell）：
+
+```powershell
+$dir  = "$env:USERPROFILE\.dsh\plugin-src\dsh-chat-locator"
+$base = "https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main"
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+foreach ($file in "package.json", "index.js", "client.js", "cordis.patch.yml") {
+  Invoke-WebRequest -Uri "$base/$file" -OutFile "$dir\$file"
+}
+dsh plugin --profile web add "$dir"
+```
+
+然后重启宿主：
+
+```bash
+dsh web
+```
+
 ### 安装说明
 
+- **DSH 会自动登记 bundle。** 声明了 `dsh.bundle.patch` 的包会被写进 profile 的 `dsh.profile.bundles` 列表，所以 `dsh plugin add` 就是全部步骤。
 - **没有构建步骤。** 从 git 托管地址安装时 pnpm 可能提示构建脚本被拦；本插件既没有 `prepare` 脚本也没有依赖，所以没有任何需要放行的东西。
 - **安装与卸载之后都要重启宿主。** 原因见[实现要点](#-实现要点)。
 - **安装是按 profile 生效的。** `--profile web` 是这个插件开发时用的 profile，换成你自己的即可。

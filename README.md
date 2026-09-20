@@ -52,49 +52,17 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 - macOS / Linux: open Terminal.
 - Windows: press `Win + R`, type `powershell`, and press Enter.
 
-**Step 2 — Download only the four files the plugin needs**
+**Step 2 — Install the bundle into your profile**
 
-A DSH plugin bundle is exactly four files: `package.json` (declares the bundle and the browser half), `index.js` (the host half), `client.js` (the browser half), and `cordis.patch.yml` (the patch that adds the plugin row). The README, LICENSE, tests, and docs are for GitHub readers and for contributors — the plugin does not read them, so you do not need them.
-
-macOS / Linux:
+`dsh plugin` forwards its arguments to pnpm inside the profile directory, so this registers the bundle as a dependency and DSH picks up its patch automatically. Replace `web` with your own profile name if it differs.
 
 ```bash
-mkdir -p ~/.dsh/plugin-src/dsh-chat-locator
-cd ~/.dsh/plugin-src/dsh-chat-locator
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/package.json
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/index.js
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/client.js
-curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/cordis.patch.yml
+dsh plugin --profile web add github:hawkongz/dsh-chat-locator
 ```
 
-Windows (PowerShell):
+That is the whole install. It fetches the four files a DSH plugin bundle needs — `package.json` (which declares the bundle and the browser half), `index.js` (the host half), `client.js` (the browser half), and `cordis.patch.yml` (the patch that adds the plugin row) — and there is nothing to compile and no dependency to install.
 
-```powershell
-$dir  = "$env:USERPROFILE\.dsh\plugin-src\dsh-chat-locator"
-$base = "https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main"
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-foreach ($file in "package.json", "index.js", "client.js", "cordis.patch.yml") {
-  Invoke-WebRequest -Uri "$base/$file" -OutFile "$dir\$file"
-}
-```
-
-**Step 3 — Install the bundle into your profile**
-
-`dsh plugin` forwards its arguments to pnpm inside the profile directory, so this registers the folder as a dependency and DSH picks up its patch automatically. Replace `web` with your own profile name if it differs.
-
-macOS / Linux:
-
-```bash
-dsh plugin --profile web add ~/.dsh/plugin-src/dsh-chat-locator
-```
-
-Windows (PowerShell):
-
-```powershell
-dsh plugin --profile web add "$env:USERPROFILE\.dsh\plugin-src\dsh-chat-locator"
-```
-
-**Step 4 — Restart the host**
+**Step 3 — Restart the host**
 
 ```bash
 dsh web
@@ -102,7 +70,7 @@ dsh web
 
 The host process caches imported modules, so a newly added bundle is not mounted until the host restarts once.
 
-**Step 5 — Done.** With DSH Web open at `http://127.0.0.1:3080`, you are finished if:
+**Step 4 — Done.** With DSH Web open at `http://127.0.0.1:3080`, you are finished if:
 
 - **Settings → 对话定位条** appears in the settings sidebar, and
 - in the browser console, this returns `railFound: true` on a conversation with at least two turns:
@@ -113,7 +81,9 @@ __dshChatLocator.state()
 
 Open a conversation and slide the pointer up and down the rail: the tick under the pointer grows and its neighbours taper.
 
-> To update: re-run Step 2 and restart the host. To uninstall: `dsh plugin --profile web remove dsh-chat-locator`, then restart the host.
+> To update: run `dsh plugin --profile web update dsh-chat-locator`, then restart the host. To uninstall: `dsh plugin --profile web remove dsh-chat-locator`, then restart the host.
+>
+> **Installing offline, or want a local copy you can edit?** Download the four files instead and install the folder — see [Install without git](#install-without-git).
 
 ## 📦 Installation
 
@@ -124,6 +94,14 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 | DSH | 11.x | Provides the `dsh` command and the profile you install into. |
 | Node.js | 20 or newer | Used by the host half and the test suite. |
 | A browser with `:has()` support | Chromium 105+ | Without it the length gradient does not apply; everything else still works. |
+
+### Install methods
+
+| Method | Best for |
+| :--- | :--- |
+| `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | Most users. One command, and it is what the Quick Start uses. |
+| From a git clone | Pinning a revision, or working on the plugin itself. |
+| From four downloaded files | No git available, or an offline machine. |
 
 ### Install from a git clone
 
@@ -136,8 +114,43 @@ dsh plugin --profile web add "$(pwd)"
 dsh web
 ```
 
+### Install without git
+
+A bundle is four files. Download them into a folder, install the folder, and restart the host — nothing else is needed.
+
+macOS / Linux:
+
+```bash
+mkdir -p ~/.dsh/plugin-src/dsh-chat-locator
+cd ~/.dsh/plugin-src/dsh-chat-locator
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/package.json
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/index.js
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/client.js
+curl -fsSLO https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/cordis.patch.yml
+dsh plugin --profile web add ~/.dsh/plugin-src/dsh-chat-locator
+```
+
+Windows (PowerShell):
+
+```powershell
+$dir  = "$env:USERPROFILE\.dsh\plugin-src\dsh-chat-locator"
+$base = "https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main"
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+foreach ($file in "package.json", "index.js", "client.js", "cordis.patch.yml") {
+  Invoke-WebRequest -Uri "$base/$file" -OutFile "$dir\$file"
+}
+dsh plugin --profile web add "$dir"
+```
+
+Then restart the host:
+
+```bash
+dsh web
+```
+
 ### Notes on installation
 
+- **DSH registers the bundle for you.** A package that declares `dsh.bundle.patch` is added to your profile's `dsh.profile.bundles` list automatically, so `dsh plugin add` is the only step.
 - **There is no build step.** pnpm may print a note about blocked build scripts for git-hosted packages; this plugin has no `prepare` script and no dependencies, so there is nothing to allow.
 - **Restart the host after installing or removing.** See [How It Works](#-how-it-works) for why.
 - **Installation is per profile.** `--profile web` is the profile this plugin was developed against; substitute your own.
