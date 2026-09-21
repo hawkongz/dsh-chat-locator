@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({
 		/** 覆盖样式标签的标识，便于排障与幂等更新。 */
 		const STYLE_TAG_ID = 'chat-locator/rail.css';
 		/** 版本，随排障钩子一起暴露。 */
-		const PLUGIN_VERSION = '1.2.0';
+		const PLUGIN_VERSION = '1.3.0';
 
 		/** 刻度行高固定 10px，8px 是横线粗细的实际上限（见宿主侧的 schema）。 */
 		const THICKNESS_MIN = 1;
@@ -62,7 +62,6 @@ window.__ModuleLoader__.load({
 			enabled: true,
 			thickness: 2,
 			side: 'right',
-			preview: true,
 			previewLines: 3,
 			previewFontSize: 12,
 			previewWidth: 300,
@@ -73,7 +72,7 @@ window.__ModuleLoader__.load({
 
 		const zh = {
 			nav: '对话定位条',
-			intro: '调整对话定位条：刻度横线粗细、轨道贴在左侧还是右侧、悬停预览的开关 / 行数 / 字号 / 宽度。悬停时被指向的那根刻度最长，沿轨道向外按曲线依次收拢（32 / 21 / 14 / 12px）：紧挨着的那两格明显更短，之后缓缓收尾，是一条凸向轨道的弯钩，不是等差的直线。设置写入 DSH 设置文档，重启后依然生效；「恢复默认」可一键回到出厂值。',
+			intro: '调整对话定位条：刻度横线粗细、轨道贴在左侧还是右侧、悬停预览的行数 / 字号 / 宽度。悬停时被指向的那根刻度最长，沿轨道向外按曲线依次收拢（32 / 21 / 14 / 12px）：紧挨着的那两格明显更短，之后缓缓收尾，是一条凸向轨道的弯钩，不是等差的直线。设置写入 DSH 设置文档，重启后依然生效；「恢复默认」可一键回到出厂值。',
 			enableTitle: '显示对话定位条',
 			enableDesc: '关闭后整条轨道隐藏；对话内容、轮次跳转与历史分页都不受影响。',
 			thicknessTitle: '横线粗细',
@@ -82,8 +81,6 @@ window.__ModuleLoader__.load({
 			sideDesc: '轨道贴在对话区的哪一侧；悬停预览会自动改到另一侧展开，不遮住正文。',
 			sideRight: '右侧',
 			sideLeft: '左侧',
-			previewTitle: '悬停预览',
-			previewDesc: '悬停（或键盘聚焦）刻度时浮出该轮的提示词与回复。内容为纯文本：不含思考内容，空白折叠，超长截断。',
 			previewLinesTitle: '预览正文行数',
 			previewLinesDesc: '回复预览最多显示几行，当前 {value} 行；预览卡会跟着一起变高，只有超出的部分才被裁掉。',
 			fontSizeTitle: '预览字号',
@@ -91,15 +88,13 @@ window.__ModuleLoader__.load({
 			widthTitle: '预览框宽度',
 			widthDesc: '预览卡的宽度，当前 {value}px；对话区较窄时会自动收缩，不会顶出可视范围。',
 			resetTitle: '恢复默认',
-			resetDesc: '把上面各项恢复成出厂值：粗细 2px、轨道在右侧、悬停预览开、3 行、12px 字号、300px 宽。',
+			resetDesc: '把上面各项恢复成出厂值：粗细 2px、轨道在右侧、3 行、12px 字号、300px 宽。',
 			resetDescDefault: '当前各项都已经是出厂值。',
 			reset: '恢复默认',
 			sampleTitle: '预览效果（示例）',
 			sampleNote: '小样：悬停的那根最长（32px，明显比邻居突出），向外每格依次 21 / 14，再往外是普通刻度 12px。长度沿一条凸向轨道的幂曲线收拢：紧挨着的那格掉得最多，之后越来越缓。',
-			sampleNoteOff: '悬停预览关闭时，长度渐变也一并停用，刻度回到统一宽度。',
 			samplePrompt: '把这段说明改写成三条要点',
 			sampleResponse: '已按要求整理：一、保留原意与语气；二、把重复表述合并到同一条；三、术语与原文保持一致，缩写首次出现时给全称。',
-			previewOff: '悬停预览已关闭',
 			decrease: '减小',
 			increase: '增大',
 			unavailable: '宿主设置文档当前不可用，改动只在本次会话生效。',
@@ -117,8 +112,6 @@ window.__ModuleLoader__.load({
 			sideDesc: 'Which side of the conversation the track hugs; the hover preview always opens on the other side.',
 			sideRight: 'Right',
 			sideLeft: 'Left',
-			previewTitle: 'Hover preview',
-			previewDesc: 'Hovering (or focusing) a tick shows that turn’s prompt and reply. Plain text only: no thinking content, whitespace collapsed, long text truncated.',
 			previewLinesTitle: 'Preview body lines',
 			previewLinesDesc: 'How many lines the reply preview may show, currently {value}; the card grows with it and only the overflow is clipped.',
 			fontSizeTitle: 'Preview font size',
@@ -126,15 +119,13 @@ window.__ModuleLoader__.load({
 			widthTitle: 'Preview card width',
 			widthDesc: 'Width of the preview card, currently {value}px; it shrinks automatically inside a narrow conversation column.',
 			resetTitle: 'Restore defaults',
-			resetDesc: 'Puts everything above back to factory values: 2px thickness, right side, preview on, 3 lines, 12px text, 300px wide.',
+			resetDesc: 'Puts everything above back to factory values: 2px thickness, right side, 3 lines, 12px text, 300px wide.',
 			resetDescDefault: 'Everything is already at its factory value.',
 			reset: 'Restore defaults',
 			sampleTitle: 'Preview (sample)',
 			sampleNote: 'Sample: the hovered tick is longest (32px, clearly ahead of its neighbours), then 21 / 14 stepping outward, and the regular 12px tick beyond. The falloff follows a power curve bowing toward the track: the first step drops the most, then it eases out.',
-			sampleNoteOff: 'With the hover preview off, the length taper is off too and every tick returns to one width.',
 			samplePrompt: 'Rewrite this note as three bullet points',
 			sampleResponse: 'Done: keep the original intent and tone; merge repeated statements into one point; keep terminology consistent and spell out abbreviations on first use.',
-			previewOff: 'Hover preview is off',
 			decrease: 'Decrease',
 			increase: 'Increase',
 			unavailable: 'The host settings document is unavailable; changes apply to this session only.',
@@ -157,7 +148,6 @@ window.__ModuleLoader__.load({
 				enabled: source.enabled !== false,
 				thickness: clampInteger(source.thickness, THICKNESS_MIN, THICKNESS_MAX, DEFAULTS.thickness),
 				side: source.side === 'left' ? 'left' : 'right',
-				preview: source.preview !== false,
 				previewLines: clampInteger(source.previewLines, PREVIEW_LINES_MIN, PREVIEW_LINES_MAX, DEFAULTS.previewLines),
 				previewFontSize: clampInteger(source.previewFontSize, PREVIEW_FONT_MIN, PREVIEW_FONT_MAX, DEFAULTS.previewFontSize),
 				previewWidth: clampInteger(source.previewWidth, PREVIEW_WIDTH_MIN, PREVIEW_WIDTH_MAX, DEFAULTS.previewWidth),
@@ -169,7 +159,6 @@ window.__ModuleLoader__.load({
 			return left.enabled === right.enabled
 				&& left.thickness === right.thickness
 				&& left.side === right.side
-				&& left.preview === right.preview
 				&& left.previewLines === right.previewLines
 				&& left.previewFontSize === right.previewFontSize
 				&& left.previewWidth === right.previewWidth;
@@ -434,29 +423,25 @@ window.__ModuleLoader__.load({
 				rules.push('.' + prefix + '_preview{right:auto !important;left:calc(100% + 10px) !important}');
 				rules.push('@keyframes ' + prefix + '_dsh-turn-preview-enter{0%{opacity:0;transform:translate(-4px)}to{opacity:1;transform:translate(0)}}');
 			}
-			if (!config.preview) {
-				rules.push('.' + prefix + '_preview{display:none !important}');
-			} else {
-				// 悬停处的曲线长度渐变：悬停那根 32px，向外 21 / 14，再往外是内置的 12px。
-				// 它和预览卡是同一个「悬停预览」开关下的两种表现，所以一起开关。
-				rules.push('.' + prefix + '_markPreview::before{width:' + GRADIENT_WIDTHS[0] + 'px !important}');
-				for (let distance = 1; distance < GRADIENT_WIDTHS.length; distance += 1) {
-					rules.push(gradientSelectorPair(prefix, distance) + '{width:' + GRADIENT_WIDTHS[distance] + 'px !important}');
-				}
-				const metrics = previewMetrics(config);
-				// 预览卡高度跟着行数与字号走：内置把它钉死在 100px（`overflow:hidden` 再裁一刀），
-				// 行数调到 4 以上、或把字放大，多出来的部分就只会被裁掉 ——
-				// 这里让 `--turn-preview-height` 按同一套行高算出来，卡片的
-				// max-height 与 top 夹取都引用它，于是行数与字号真的生效。
-				rules.push('.' + prefix + '_frame{--turn-preview-height:' + metrics.height + 'px !important}');
-				// 宽度沿用内置的容器夹取写法（`100cqw - 120px`），所以窄窗口不会顶出可视范围。
-				rules.push('.' + prefix + '_preview{width:min(' + config.previewWidth + 'px, 100cqw - 120px) !important}');
-				// 纯文本呈现：先归一空白（杜绝空白行），再按配置行数截断。
-				rules.push('.' + prefix + '_previewPrompt,.' + prefix + '_previewResponse{white-space:normal !important;overflow-wrap:anywhere !important}');
-				// 字号与行高成对改写：只改字号会让行高与卡片高度对不上（内置的行高是 px，不会自己缩放）。
-				rules.push('.' + prefix + '_previewPrompt{font-size:' + metrics.promptSize + 'px !important;line-height:' + metrics.promptLineHeight + 'px !important}');
-				rules.push('.' + prefix + '_previewResponse{font-size:' + config.previewFontSize + 'px !important;line-height:' + metrics.lineHeight + 'px !important;-webkit-line-clamp:' + config.previewLines + ' !important}');
+			// 悬停处的曲线长度渐变：悬停那根 32px，向外 21 / 14，再往外是内置的 12px。
+			// 预览恒定生效 —— 定位条的存在意义就是浏览，没有理由把它关掉，所以这里不再有条件分支。
+			rules.push('.' + prefix + '_markPreview::before{width:' + GRADIENT_WIDTHS[0] + 'px !important}');
+			for (let distance = 1; distance < GRADIENT_WIDTHS.length; distance += 1) {
+				rules.push(gradientSelectorPair(prefix, distance) + '{width:' + GRADIENT_WIDTHS[distance] + 'px !important}');
 			}
+			const metrics = previewMetrics(config);
+			// 预览卡高度跟着行数与字号走：内置把它钉死在 100px（`overflow:hidden` 再裁一刀），
+			// 行数调到 4 以上、或把字放大，多出来的部分就只会被裁掉 ——
+			// 这里让 `--turn-preview-height` 按同一套行高算出来，卡片的
+			// max-height 与 top 夹取都引用它，于是行数与字号真的生效。
+			rules.push('.' + prefix + '_frame{--turn-preview-height:' + metrics.height + 'px !important}');
+			// 宽度沿用内置的容器夹取写法（`100cqw - 120px`），所以窄窗口不会顶出可视范围。
+			rules.push('.' + prefix + '_preview{width:min(' + config.previewWidth + 'px, 100cqw - 120px) !important}');
+			// 纯文本呈现：先归一空白（杜绝空白行），再按配置行数截断。
+			rules.push('.' + prefix + '_previewPrompt,.' + prefix + '_previewResponse{white-space:normal !important;overflow-wrap:anywhere !important}');
+			// 字号与行高成对改写：只改字号会让行高与卡片高度对不上（内置的行高是 px，不会自己缩放）。
+			rules.push('.' + prefix + '_previewPrompt{font-size:' + metrics.promptSize + 'px !important;line-height:' + metrics.promptLineHeight + 'px !important}');
+			rules.push('.' + prefix + '_previewResponse{font-size:' + config.previewFontSize + 'px !important;line-height:' + metrics.lineHeight + 'px !important;-webkit-line-clamp:' + config.previewLines + ' !important}');
 			return rules.join('');
 		}
 
@@ -735,60 +720,48 @@ window.__ModuleLoader__.load({
 					},
 				}));
 			}
-			const opposite = side === 'left' ? 'right' : 'left';
-			const card = config.preview
-				? React.createElement('div', {
-					key: 'card',
+			const card = React.createElement('div', {
+				key: 'card',
+				style: {
+					position: 'absolute',
+					top: SAMPLE_CARD_TOP_PX + 'px',
+					[side]: SAMPLE_CARD_OFFSET_PX + 'px',
+					width: config.previewWidth + 'px',
+					boxSizing: 'border-box',
+					padding: '10px 12px',
+					borderRadius: '10px',
+					background: 'var(--dsw-alias-bg-layer-2)',
+					boxShadow: 'var(--dsw-elevation-panel, 0 4px 16px rgba(0, 0, 0, 0.18))',
+				},
+			}, [
+				React.createElement('div', {
+					key: 'prompt',
 					style: {
-						position: 'absolute',
-						top: SAMPLE_CARD_TOP_PX + 'px',
-						[side]: SAMPLE_CARD_OFFSET_PX + 'px',
-						width: config.previewWidth + 'px',
-						boxSizing: 'border-box',
-						padding: '10px 12px',
-						borderRadius: '10px',
-						background: 'var(--dsw-alias-bg-layer-2)',
-						boxShadow: 'var(--dsw-elevation-panel, 0 4px 16px rgba(0, 0, 0, 0.18))',
+						fontSize: metrics.promptSize + 'px',
+						lineHeight: metrics.promptLineHeight + 'px',
+						whiteSpace: 'nowrap',
+						overflow: 'hidden',
+						textOverflow: 'ellipsis',
 					},
-				}, [
-					React.createElement('div', {
-						key: 'prompt',
-						style: {
-							fontSize: metrics.promptSize + 'px',
-							lineHeight: metrics.promptLineHeight + 'px',
-							whiteSpace: 'nowrap',
-							overflow: 'hidden',
-							textOverflow: 'ellipsis',
-						},
-					}, t('samplePrompt')),
-					React.createElement('div', {
-						key: 'response',
-						style: {
-							marginTop: '4px',
-							color: 'var(--dsw-alias-label-secondary)',
-							fontSize: config.previewFontSize + 'px',
-							lineHeight: metrics.lineHeight + 'px',
-							display: '-webkit-box',
-							WebkitBoxOrient: 'vertical',
-							WebkitLineClamp: config.previewLines,
-							overflow: 'hidden',
-							overflowWrap: 'anywhere',
-						},
-					}, t('sampleResponse')),
-				])
-				: React.createElement('div', {
-					key: 'off',
+				}, t('samplePrompt')),
+				React.createElement('div', {
+					key: 'response',
 					style: {
-						position: 'absolute',
-						top: (SAMPLE_CARD_TOP_PX + 8) + 'px',
-						[opposite]: '34px',
-						fontSize: '12px',
+						marginTop: '4px',
 						color: 'var(--dsw-alias-label-secondary)',
+						fontSize: config.previewFontSize + 'px',
+						lineHeight: metrics.lineHeight + 'px',
+						display: '-webkit-box',
+						WebkitBoxOrient: 'vertical',
+						WebkitLineClamp: config.previewLines,
+						overflow: 'hidden',
+						overflowWrap: 'anywhere',
 					},
-				}, t('previewOff'));
+				}, t('sampleResponse')),
+			]);
 			// 小样框自己也跟着字号与行数长高，否则调大之后只是把小样裁掉，
 			// 看不出「预览卡跟着变高」这件事（真实轨道同理，见 railStyleText 的高度变量）。
-			const sampleHeight = config.preview ? Math.max(132, metrics.height + SAMPLE_CARD_TOP_PX + 12) : 132;
+			const sampleHeight = Math.max(132, metrics.height + SAMPLE_CARD_TOP_PX + 12);
 			return React.createElement('div', {
 				style: {
 					position: 'relative',
@@ -863,12 +836,6 @@ window.__ModuleLoader__.load({
 				}),
 			));
 			children.push(row(
-				'preview',
-				t('previewTitle'),
-				t('previewDesc'),
-				React.createElement(Toggle, { on: config.preview, label: t('previewTitle'), onToggle: (value) => update('preview', value) }),
-			));
-			children.push(row(
 				'previewLines',
 				t('previewLinesTitle'),
 				t('previewLinesDesc', { value: config.previewLines }),
@@ -924,7 +891,7 @@ window.__ModuleLoader__.load({
 			}, [
 				React.createElement('div', { key: 'title', style: ROW_TITLE }, t('sampleTitle')),
 				React.createElement(Sample, { key: 'body', config, t }),
-				React.createElement('div', { key: 'note', style: ROW_DESC }, config.preview ? t('sampleNote') : t('sampleNoteOff')),
+				React.createElement('div', { key: 'note', style: ROW_DESC }, t('sampleNote')),
 			]));
 			return React.createElement('div', { style: SECTION }, children);
 		}
@@ -953,7 +920,7 @@ window.__ModuleLoader__.load({
 			ctx.slots.inject('settings.section', () => ctx.slots.register({
 				name: 'settings.section',
 				id: 'chat-locator',
-				order: 40,
+				order: 41,
 				label: () => t('nav'),
 				inject: () => ({
 					store: policy.settings,

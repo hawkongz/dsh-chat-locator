@@ -121,7 +121,7 @@ check('超出渐变范围就是内置普通刻度宽度', gradientWidthAt(3) ===
 check('悬停那根比内置的 18px 预览宽度更长', GRADIENT_WIDTHS[0] === 32);
 
 console.log('railStyleText');
-const base = { ...DEFAULTS, thickness: 5, side: 'right', preview: true, previewLines: 3, previewFontSize: 12, previewWidth: 300 };
+const base = { ...DEFAULTS, thickness: 5, side: 'right', previewLines: 3, previewFontSize: 12, previewWidth: 300 };
 const right = railStyleText('eGxaPq', base);
 check('刻度粗细写入 height', right.includes('.eGxaPq_mark::before{height:5px !important;border-radius:3px !important}'), right);
 check('默认右侧不改框架左右定位', !right.includes('_frame{right:auto'));
@@ -131,13 +131,6 @@ check('左侧：框架翻到左边', left.includes('.eGxaPq_frame{right:auto !im
 check('左侧：刻度改左对齐', left.includes('.eGxaPq_mark{inset:0 auto 0 0 !important}') && left.includes('.eGxaPq_mark::before{right:auto !important;left:0 !important}'));
 check('左侧：预览改到轨道右侧', left.includes('.eGxaPq_preview{right:auto !important;left:calc(100% + 10px) !important}'));
 check('左侧：进场动画镜像', left.includes('@keyframes eGxaPq_dsh-turn-preview-enter{0%{opacity:0;transform:translate(-4px)}'));
-
-const previewOff = railStyleText('eGxaPq', { ...base, preview: false });
-check('关闭预览时隐藏预览卡', previewOff.includes('.eGxaPq_preview{display:none !important}'));
-check('关闭预览时不再声明行数', !previewOff.includes('line-clamp'));
-check('关闭预览时不再改写预览高度变量', !previewOff.includes('--turn-preview-height'));
-check('关闭预览时不再生成长度渐变', !previewOff.includes('markPreview::before') && !previewOff.includes(':has('));
-check('关闭预览时不再改写字号与宽度', !previewOff.includes('font-size') && !previewOff.includes('width:min('));
 
 const disabled = railStyleText('eGxaPq', { ...base, enabled: false });
 check('关闭定位条时只隐藏轨道', disabled === '.eGxaPq_slot{display:none !important}', disabled);
@@ -181,7 +174,7 @@ check('更远处不重写长度（沿用内置 12px）', !right.includes('width:
 check('渐变不锚定选中轮（markActive 宽度不被改写）', !right.includes('markActive::before{width'), right);
 check('左侧轨道同样带长度渐变', left.includes('.eGxaPq_markPreview::before{width:32px !important}') && left.includes('width:21px !important') && left.includes('width:14px !important'));
 
-for (const [label, css] of [['right', right], ['left', left], ['previewOff', previewOff]]) {
+for (const [label, css] of [['right', right], ['left', left]]) {
 	const balanced = (css.match(/\{/g) ?? []).length === (css.match(/\}/g) ?? []).length;
 	check(`${label} 规则花括号配平`, balanced);
 	check(`${label} 规则不含 undefined/NaN`, !css.includes('undefined') && !css.includes('NaN'), css);
@@ -200,9 +193,9 @@ check(`预览字号低于下限夹到 ${PREVIEW_FONT_MIN}`, normalizeSettings({ 
 check('非数字字号回落默认', normalizeSettings({ previewFontSize: 'big' }).previewFontSize === DEFAULTS.previewFontSize);
 check(`预览宽度越界夹到 ${PREVIEW_WIDTH_MAX}`, normalizeSettings({ previewWidth: 9999 }).previewWidth === PREVIEW_WIDTH_MAX);
 check(`预览宽度低于下限夹到 ${PREVIEW_WIDTH_MIN}`, normalizeSettings({ previewWidth: 10 }).previewWidth === PREVIEW_WIDTH_MIN);
-check('显式 false 保留', normalizeSettings({ enabled: false, preview: false }).enabled === false && normalizeSettings({ preview: false }).preview === false);
+check('显式 false 保留', normalizeSettings({ enabled: false }).enabled === false && normalizeSettings({}).enabled === true);
 check('默认值判定（sameSettings）认得全字段', sameSettings(normalizeSettings(undefined), DEFAULTS) === true && sameSettings(normalizeSettings({ previewWidth: 320 }), DEFAULTS) === false);
-check('恢复默认覆盖全部可持久化字段', JSON.stringify(SETTINGS_FIELDS) === JSON.stringify(['enabled', 'thickness', 'side', 'preview', 'previewLines', 'previewFontSize', 'previewWidth']), JSON.stringify(SETTINGS_FIELDS));
+check('恢复默认覆盖全部可持久化字段', JSON.stringify(SETTINGS_FIELDS) === JSON.stringify(['enabled', 'thickness', 'side', 'previewLines', 'previewFontSize', 'previewWidth']), JSON.stringify(SETTINGS_FIELDS));
 
 // ---------------------------------------------------------------------------
 // apply 端到端（桩服务 + 桩 DOM）：覆盖装载期真正跑的那条路径 ——
@@ -240,7 +233,7 @@ const t = (key, params) => {
 // 桩作用域做成会广播的小 store：既覆盖「写回宿主」的回执路径，
 // 也覆盖「宿主重新注册出字段后自动补写」的自愈路径。
 // 初始 value 是**旧版宿主半侧**的完整解（v1.1.0 只有这 5 个字段，没有字号/宽度）。
-const hostState = { status: 'ready', value: { enabled: true, thickness: 4, side: 'left', preview: true, previewLines: 3 }, writable: true, revision: 1 };
+const hostState = { status: 'ready', value: { enabled: true, thickness: 4, side: 'left', previewLines: 3 }, writable: true, revision: 1 };
 const scopeListeners = new Set();
 const notifyScope = () => {
 	for (const listener of [...scopeListeners]) listener();
@@ -294,7 +287,7 @@ console.log('');
 console.log('apply（桩服务）');
 check('注册了 chat-locator 字典（zh/en）', dictionaries.length === 1 && dictionaries[0].ns === 'chat-locator' && typeof dictionaries[0].dicts?.zh?.nav === 'string' && typeof dictionaries[0].dicts?.en?.nav === 'string');
 check('设置作用域绑定到同名命名空间', ctxStub.settingsScope !== undefined && registeredSlots.length === 1);
-check('设置页注册在 settings.section 的 chat-locator 格', registeredSlots[0].name === 'settings.section' && registeredSlots[0].entry.options.id === 'chat-locator' && registeredSlots[0].entry.options.order === 40);
+check('设置页注册在 settings.section 的 chat-locator 格', registeredSlots[0].name === 'settings.section' && registeredSlots[0].entry.options.id === 'chat-locator' && registeredSlots[0].entry.options.order === 41);
 check('设置页导航名走本地化', registeredSlots[0].entry.options.label() === '对话定位条', registeredSlots[0].entry.options.label());
 check('设置页拿到 store / update / reset / t', typeof registeredSlots[0].entry.options.inject().store?.getSnapshot === 'function' && typeof registeredSlots[0].entry.options.inject().update === 'function' && typeof registeredSlots[0].entry.options.inject().reset === 'function' && registeredSlots[0].entry.options.inject().t === t);
 const injected = registeredSlots[0].entry.options.inject();
@@ -307,7 +300,7 @@ check('覆盖样式按发现的前缀与配置生成', styleTag.textContent.incl
 check('覆盖样式带上曲线渐变的四档长度', [32, 21, 14].every((width) => styleTag.textContent.includes(`width:${width}px !important`)), styleTag.textContent);
 
 const debug = windowApplyStub.__dshChatLocator;
-check('排障钩子暴露版本与状态', debug?.version === '1.2.0' && debug.state().railPrefix === 'eGxaPq' && debug.state().railFound === true, JSON.stringify(debug?.version));
+check('排障钩子暴露版本与状态', debug?.version === '1.3.0' && debug.state().railPrefix === 'eGxaPq' && debug.state().railFound === true, JSON.stringify(debug?.version));
 check('排障钩子带上宿主设置状态', debug.state().settingsStatus.status === 'ready' && debug.state().settingsStatus.writable === true);
 
 injected.update('thickness', 6);
@@ -396,18 +389,23 @@ check('补写后提示消失', legacyNotices(sectionNodes).length === 0, JSON.st
 check('改动过配置时「恢复默认」可用', resetButtonOf(sectionNodes)?.props?.disabled === false);
 const writesBeforeReset = scopeWrites.length;
 injected.reset();
-check('恢复默认逐项清空全部 7 个字段', scopeUnsets.length === SETTINGS_FIELDS.length && JSON.stringify(scopeUnsets) === JSON.stringify([...SETTINGS_FIELDS]), JSON.stringify(scopeUnsets));
+check(`恢复默认逐项清空全部 ${SETTINGS_FIELDS.length} 个字段`, scopeUnsets.length === SETTINGS_FIELDS.length && JSON.stringify(scopeUnsets) === JSON.stringify([...SETTINGS_FIELDS]), JSON.stringify(scopeUnsets));
 check('恢复默认把本地快照拉回出厂值', sameSettings(injected.store.getSnapshot(), DEFAULTS) === true, JSON.stringify(injected.store.getSnapshot()));
 check('恢复默认只 unset、不把默认值再写一遍', scopeWrites.length === writesBeforeReset, JSON.stringify(scopeWrites));
 sectionNodes = flatten(Section(injected));
 check('已是默认值时「恢复默认」置灰', resetButtonOf(sectionNodes)?.props?.disabled === true);
 check('已是默认值时小样高度也回到 144px', containerOf(sectionNodes)?.props?.style?.height === '144px');
 
-injected.update('preview', false);
-sectionNodes = flatten(Section(injected));
-check('关闭预览后小样回到固定高度', containerOf(sectionNodes)?.props?.style?.height === '132px');
-check('关闭预览后小样改为提示文案', sectionNodes.some((node) => node?.children?.includes?.('悬停预览已关闭')));
-check('关闭预览后小样注脚说明渐变停用', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.some((child) => typeof child === 'string' && child.includes('长度渐变也一并停用'))));
+// 悬停预览不再有开关：定位条本身就是用来浏览的，所以设置页不该再出现这一行，
+// 小样也恒定渲染预览卡与渐变注脚。
+const titleOf = (nodes) => nodes
+	.filter((node) => Array.isArray(node?.children) && node.children.length === 1 && typeof node.children[0] === 'string')
+	.map((node) => node.children[0]);
+const titles = titleOf(sectionNodes);
+check('设置页不再有「悬停预览」开关行', !titles.includes('悬停预览'), JSON.stringify(titles));
+check('预览的行数 / 字号 / 宽度三行仍在', ['预览正文行数', '预览字号', '预览框宽度'].every((title) => titles.includes(title)), JSON.stringify(titles));
+check('小样恒定渲染预览卡', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.includes('把这段说明改写成三条要点')));
+check('小样注脚恒定是渐变说明', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.some((child) => typeof child === 'string' && child.startsWith('小样：'))));
 
 for (const disposer of [...disposers].reverse()) if (typeof disposer === 'function') disposer();
 check('清理后移除样式标签', styleTag.removed === true);

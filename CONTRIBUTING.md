@@ -47,7 +47,7 @@ Node.js 20 or newer and nothing else.
 git clone https://github.com/hawkongz/dsh-chat-locator.git
 cd dsh-chat-locator
 
-# 2. Run the test suite (121 assertions, no install step)
+# 2. Run the test suite (115 assertions, no install step)
 node test/verify-client.mjs
 ```
 

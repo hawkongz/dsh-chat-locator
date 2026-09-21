@@ -17,7 +17,7 @@
  * 自己的查找顺序解析 schemastery：link: 安装与普通拷贝安装都成立。
  *
  * 解析不到时插件照常挂载，只是设置段不注册：浏览器半侧会显示「设置文档不可用」
- * 的提示，刻度粗细 / 轨道侧 / 悬停预览仍可当场调整，只是不能持久化。
+ * 的提示，刻度粗细 / 轨道侧 / 预览行数等仍可当场调整，只是不能持久化。
  *
  * 视觉与交互全部在浏览器半侧 `./client.js`：宿主半侧不注入任何工具、命令或提示词。
  *
@@ -39,8 +39,6 @@ const DEFAULT_LOCATOR_SETTINGS = Object.freeze({
 	thickness: 2,
 	/** 轨道贴在对话区的哪一侧。 */
 	side: 'right',
-	/** 是否显示悬停预览。 */
-	preview: true,
 	/** 预览正文最多显示多少行。 */
 	previewLines: 3,
 	/** 预览卡里文字的字号（px）。 */
@@ -97,7 +95,6 @@ function locatorSettingsSchema(z) {
 		enabled: z.boolean().default(DEFAULT_LOCATOR_SETTINGS.enabled),
 		thickness: z.natural().min(THICKNESS_RANGE[0]).max(THICKNESS_RANGE[1]).default(DEFAULT_LOCATOR_SETTINGS.thickness),
 		side: z.union([...SIDES]).default(DEFAULT_LOCATOR_SETTINGS.side),
-		preview: z.boolean().default(DEFAULT_LOCATOR_SETTINGS.preview),
 		previewLines: z.natural().min(PREVIEW_LINES_RANGE[0]).max(PREVIEW_LINES_RANGE[1]).default(DEFAULT_LOCATOR_SETTINGS.previewLines),
 		previewFontSize: z.natural().min(PREVIEW_FONT_RANGE[0]).max(PREVIEW_FONT_RANGE[1]).default(DEFAULT_LOCATOR_SETTINGS.previewFontSize),
 		previewWidth: z.natural().min(PREVIEW_WIDTH_RANGE[0]).max(PREVIEW_WIDTH_RANGE[1]).default(DEFAULT_LOCATOR_SETTINGS.previewWidth),

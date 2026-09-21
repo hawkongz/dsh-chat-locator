@@ -111,14 +111,14 @@ source. Concretely:
 * Text is truncated with an ellipsis under fixed character budgets (50 for the prompt, 120 for
   the response).
 
-The plugin decides only whether the preview is shown, how many lines it has, its font size and
-width, the card height, and which side it expands to. `white-space: normal` and
+The plugin decides only how many lines the preview has, its font size and width, the card
+height, and which side it expands to. `white-space: normal` and
 `overflow-wrap: anywhere` pin down the two failure modes that would otherwise come back:
 blank lines produced by wrapping, and horizontal overflow.
 
 ## 📐 The Gradient Curve
 
-With the preview enabled, the tick under the pointer becomes the longest one, and the ticks
+The tick under the pointer becomes the longest one, and the ticks
 around it taper back to the shipped width:
 
 | Distance from the hovered tick | 0 | ±1 | ±2 | ≥3 |
@@ -168,7 +168,7 @@ frame is also the rail's hover and click surface, which is the one visible side 
 
 ## ✅ Verification Status
 
-`node test/verify-client.mjs` runs **121 assertions**, all passing, with no network, no browser,
+`node test/verify-client.mjs` runs **115 assertions**, all passing, with no network, no browser,
 and no install step. Coverage:
 
 * **Rail discovery** — including decoy frames, a missing rail, and a missing `document`.
@@ -184,7 +184,7 @@ and no install step. Coverage:
 * **A full `apply()` against stub services** — dictionary registration, settings scope binding,
   style mounting and refresh on config change, settings page registration (including `order`),
   write receipts, the legacy-host session-staging path and its notice, the automatic back-fill
-  when the host catches up, the seven `unset` calls behind "Restore defaults" and the disabled
+  when the host catches up, the six `unset` calls behind "Restore defaults" and the disabled
   button state, and cleanup.
 * **The settings page component rendered directly** — the seven-tick sample, the width sequence
   `12 / 14 / 21 / 32 / 21 / 14 / 12`, the preview card clearing the longest tick by 48px, card
@@ -228,6 +228,15 @@ At the time of writing, a running host process can still hold the older 5-field 
 
 ## 📚 Version History
 
+### 1.3.0
+
+* **The hover preview toggle is gone.** The rail exists to be browsed, and a switch that turns
+  the preview off works against the feature it belongs to — with previews off the rail shows
+  tick positions and nothing else. The preview, its length gradient, and the settings sample
+  card are now unconditional. The only surviving master switch is "Show the conversation
+  locator", which hides the whole rail. The `preview` field was removed from the settings
+  schema; a stored `preview: false` is ignored rather than migrated.
+
 ### 1.2.0
 
 1. **A longer, curved length gradient, with the clip box opened up.** The gradient went from 4
@@ -241,7 +250,7 @@ At the time of writing, a running host process can still hold the older 5-field 
    default is exactly the built-in 100px and the default appearance is unchanged, while 18px /
    6 lines is 208px. Width reuses the built-in `width: min(Npx, 100cqw - 120px)` form, so a
    narrow window cannot push the card off screen.
-3. **"Restore defaults".** All seven fields are `unset` individually, which clears the user
+3. **"Restore defaults".** All six fields are `unset` individually, which clears the user
    layer and falls back to the schema defaults rather than writing the defaults back as values.
    When every field is already at its default, the button is disabled and says so.
 

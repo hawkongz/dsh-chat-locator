@@ -35,11 +35,11 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 
 - **Tick thickness (横线粗细):** 1–8px instead of a fixed 2px. Only the line width changes; the 10px tick spacing stays put.
 - **Rail side (轨道位置):** Left or right. The hover preview automatically opens on the opposite side, so it never covers the text you are reading.
-- **Hover preview (悬停预览):** A plain-text card showing that turn's prompt and response. Thinking content can never appear in it, whitespace is collapsed so it cannot contain a blank line, and long text is truncated with an ellipsis.
+- **Hover preview:** A plain-text card showing that turn's prompt and response. Thinking content can never appear in it, whitespace is collapsed so it cannot contain a blank line, and long text is truncated with an ellipsis.
 - **Preview line count (预览正文行数):** 1–6 lines. The card really grows — only the overflow is clipped.
 - **Preview font size and width (预览字号 / 预览框宽度):** 10–18px and 200–420px. Font size and line height scale as a pair, so enlarging the text never crowds or clips it.
-- **A curved length gradient:** With the preview on, the tick under the pointer grows to 32px and its neighbours taper back along a curve — `21 / 14 / 12` — so the rail reads as a hook pointing at where you are, not as a straight diagonal.
-- **Restore defaults (恢复默认):** All seven settings back to factory values in one click, via per-field `unset` rather than rewriting the defaults.
+- **A curved length gradient:** The tick under the pointer grows to 32px and its neighbours taper back along a curve — `21 / 14 / 12` — so the rail reads as a hook pointing at where you are, not as a straight diagonal.
+- **Restore defaults (恢复默认):** All six settings back to factory values in one click, via per-field `unset` rather than rewriting the defaults.
 - **A dedicated settings page:** Settings → 对话定位条, with a live sample rail and sample preview card that redraw as you change each value.
 - **Zero dependencies, no build step.** Both halves are plain ESM loaded directly by Node and the browser.
 
@@ -167,15 +167,14 @@ Everything lives on one settings page: **Settings → 对话定位条**. The tab
 | Show the locator rail<br>`显示对话定位条` | On | On / Off | Hides the whole rail. Turn jumping and unloaded-turn paging are unaffected. |
 | Tick thickness<br>`横线粗细` | 2px | 1–8px | The line width of each turn's tick. Tick spacing stays at 10px, so 8px is the practical ceiling. |
 | Rail side<br>`轨道位置` | Right | Left / Right | Which edge of the conversation area the rail hugs. The hover preview opens on the opposite side automatically. |
-| Hover preview<br>`悬停预览` | On | On / Off | Shows the prompt and response for the hovered turn. Also gates the length gradient — with the preview off, no gradient is applied. |
 | Preview line count<br>`预览正文行数` | 3 | 1–6 | How many lines of the response to show. The card grows with the content; only the overflow is clipped. |
 | Preview font size<br>`预览字号` | 12px | 10–18px | The card's font size. Line height scales with it at 1.5x, and the card height is computed from the same line height, so larger text is never clipped. |
 | Preview card width<br>`预览框宽度` | 300px | 200–420px | The card's width. It keeps the built-in container clamp, so it shrinks automatically in a narrow window. |
-| Restore defaults<br>`恢复默认` | — | — | Resets all seven settings to their factory values. Disabled when everything is already at its default. |
+| Restore defaults<br>`恢复默认` | — | — | Resets all six settings to their factory values. Disabled when everything is already at its default. |
 
 ### The length gradient
 
-With the preview enabled, the tick you point at is the longest, and the ticks around it taper away along a curve:
+The tick you point at is the longest, and the ticks around it taper away along a curve:
 
 | Distance from the hovered tick | 0 | ±1 | ±2 | ≥3 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -219,7 +218,7 @@ Known boundaries — the upstream class-name contract, the 900px container cutof
 
 ## 🤝 Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). There is nothing to install: clone the repository and run `node test/verify-client.mjs` to get all 121 assertions.
+See [CONTRIBUTING.md](CONTRIBUTING.md). There is nothing to install: clone the repository and run `node test/verify-client.mjs` to get all 115 assertions.
 
 Bug reports and feature requests are welcome — the templates ask for the `__dshChatLocator.state()` output, which answers most triage questions in one paste.
 
