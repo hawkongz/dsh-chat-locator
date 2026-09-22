@@ -14,7 +14,7 @@ before relying on it.
 
 - [The Problem](#-the-problem)
 - [Claiming Styles, Not Redrawing](#-claiming-styles-not-redrawing)
-- [The Host Half and Its Module Cache](#-the-host-half-and-its-module-cache)
+- [Settings in the Browser, Not the Host](#-settings-in-the-browser-not-the-host)
 - [Keeping the Preview Plain Text](#-keeping-the-preview-plain-text)
 - [The Gradient Curve](#-the-gradient-curve)
 - [Verification Status](#-verification-status)
@@ -56,47 +56,52 @@ view — the plugin does not throw and does not retry in a tight loop. A single
 `MutationObserver` throttled to 400ms adds the rules once the rail appears, and recomputes them
 if the prefix changes.
 
-## 🧠 The Host Half and Its Module Cache
+## 💾 Settings in the Browser, Not the Host
 
-Client settings scopes can only be derived from a namespace the host has already registered, so
-the plugin has two halves. The host half, `index.js`, does exactly one thing:
-`ctx.settings.register('chat-locator', schema)`, with defaults and range validation in the
-schema. The browser half then binds to it with
-`ctx.settingsScope.bind({ namespace: 'chat-locator' })`.
+Up to 1.3.0 the plugin had two live halves. The host half, `index.js`, did exactly one
+thing: `ctx.settings.register('chat-locator', schema)`, with defaults and range
+validation in the schema. The browser half then bound to it with
+`ctx.settingsScope.bind({ namespace: 'chat-locator' })`, so every change was written
+into the DSH settings document and survived everything — including a move to another
+machine.
 
-### Why there is no bare import of schemastery
+dsh 0.1.7 removed the client `settingsScope` service (settings persistence moved to the
+remote.settings system), and with it the only reason the host half existed. Since 1.4.0
+the browser half builds its own scope instead, on `createSnapshotStore` from
+`@deepseek-ai/dsh-client-store` with `persist: { name: 'dsh.chat-locator.settings' }`.
+It is exactly the shape the scope API used to have — `getSnapshot()` / `subscribe()` /
+`set()` / `unset()` — so `LocatorPolicy` needed no change beyond the constructor
+argument:
 
-`index.js` deliberately does **not** contain `import z from '@deepseek-ai/schemastery'`. When
-the bundle is installed from a workspace directory, `plugin_manager` records the dependency as
-`link:<workspace-dir>`, and Node resolves that package's dependencies from its real path on
-disk. A bare specifier therefore fails with `ERR_MODULE_NOT_FOUND` — measured, and the failure
-mode is severe: the entire plugin row fails to mount, not just the settings registration.
+* `getSnapshot()` returns `{ value, status: 'ready', writable: true }`, and `value`
+  always contains every schema field, with defaults filled in for missing keys.
+* `set(field, value)` writes straight through to local storage.
+* `unset(field)` deletes the key; the next snapshot falls back to the default, which
+  is what "Restore defaults" uses — it never writes the defaults back as values.
 
-The fix is `loadSchemastery(ctx)`, which resolves the module from the configuration tree's base
-URL (the profile directory, `ctx.baseUrl`) using
-`createRequire(anchor)('@deepseek-ai/schemastery')`, honoring Node's own lookup order. This
-works for `link:` installs and for ordinary copied installs alike. If resolution fails, the
-plugin still mounts normally and only the settings namespace is unregistered; the settings page
-tells the user "the host settings document is currently unavailable" rather than failing
-silently.
+### What that costs
 
-### The module cache, and what it costs
+* **Settings are per browser.** They live in this browser's local storage, so they
+  survive restarts of the browser and of DSH Web, but they no longer sync across
+  browsers, profiles, or machines.
+* **The old host settings are ignored.** A `chat-locator:` section left in the DSH
+  settings document by 1.3.0 or older is no longer read, so the first run after
+  upgrading shows factory values. That is the accepted price of the move, and it is
+  documented in both READMEs.
+* **The session-staging machinery is gone.** With a local scope there is no "the host
+  does not know this field yet" state, so the `pending` map, the `unsupported` status,
+  the hostLegacy notice, and the back-fill path were removed rather than left as dead
+  code. `LocatorPolicy` is now subscribe → adopt → update → reset.
 
-**Changes to the host half do not take effect automatically.** Node caches successfully imported
-modules, and the host row here is a `link:` install whose workspace directory is not in HMR's
-watch roots. This was established experimentally, not assumed: a file-write probe plus a
-"throw if a marker file exists" probe showed that after editing `index.js`, neither HMR nor
-toggling the bundle caused a re-import. The running host process kept the old schema.
+### Why `index.js` still exists
 
-Rather than pretend otherwise, the plugin handles it in three ways:
-
-1. **Fields the host schema does not know about stay session-local.** If a new version adds
-   settings that an older running host has not registered, those choices still take effect on
-   screen and are not silently discarded by the stale schema.
-2. **The settings page says so.** It shows an honest notice: restart the DSH host (`dsh web`)
-   once, and these values will be written to the settings document and persist.
-3. **`adopt()` self-heals.** Once the host restarts and the field really appears, `adopt()`
-   notices and back-fills the choices accumulated during the session.
+`cordis.patch.yml` resolves the plugin row (`name: 'dsh-chat-locator'`) to the package
+entry, `main: ./index.js`, so deleting the file would take the whole row down. Since
+1.4.0 the file is a documented no-op stub: no settings registration, no schemastery
+resolution, no host-side services at all. The two-half reload rule that used to govern
+development (the host half cached its module until `dsh web` restarted) no longer
+applies to anything observable — the only live code is the browser half, which the page
+picks up on reload.
 
 ## 💬 Keeping the Preview Plain Text
 
@@ -142,6 +147,35 @@ cliff. Both are currently `2`, which is a coincidence, not a coupling.
 The anchor is the hovered tick (`_markPreview`), not the selected turn. The active turn's tick
 (`_markActive`) is never rewritten.
 
+### The 0.1.7 selector rewrite
+
+Up to 1.3.0 the built-in rail wrapped every tick in a `_markPosition` element, and the distance
+selectors chained those wrappers as adjacent siblings (`:has(.P_markPreview) + .P_markPosition
++ .P_markPosition .P_mark::before`). **dsh 0.1.7 removed that wrapper**: the marks are now
+`button.P_mark` elements that are direct adjacent siblings inside `div.P_marks`, and the hovered
+one carries `P_markPreview` itself. The whole distance chain silently matched nothing — the
+gradient was gone with no error anywhere, which is exactly the failure mode the runtime class
+discovery cannot catch (discovery only checks `_frame` + `_mark`, both of which survived).
+
+The selectors were rebuilt on the new structure: "distance d below" is
+`.P_markPreview + .P_mark[+ .P_mark]::before`, and "distance d above" walks backwards from the
+candidate with `.P_mark:has([+ .P_mark] + .P_markPreview)::before`.
+
+0.1.7 also changed how the ticks are measured: `::before` is now `width:20px` plus
+`scaleX(.6/.9/1)` per state instead of a literal width. A width override alone would be
+multiplied by the built-in scale (32px rendered as 28.8px), so every width rule the plugin
+emits now also pins `transform:translateY(-50%)` — dropping the scaleX makes the width literal
+again, which is the pre-0.1.7 semantic. `transform-origin` becomes irrelevant as a result.
+
+### The gradient switch
+
+The gradient is decorative — a rail without it is still a fully working rail — so it has its own
+settings row (`gradient`, default on), unlike the hover preview whose switch was removed in
+1.3.0. With the gradient off, the entire width family disappears, **including the frame
+widening**: there is no 32px peak to make room for, so the frame stays at the built-in 28px and
+the conversation does not carry the extra invisible interactive strip for nothing. Thickness,
+side, and the preview rules are untouched, and the settings-page sample follows the same switch.
+
 ### Tuning history
 
 The exponent was tuned against real screenshots, and each value is recorded so the reasoning
@@ -168,7 +202,7 @@ frame is also the rail's hover and click surface, which is the one visible side 
 
 ## ✅ Verification Status
 
-`node test/verify-client.mjs` runs **115 assertions**, all passing, with no network, no browser,
+`node test/verify-client.mjs` runs **125 assertions**, all passing, with no network, no browser,
 and no install step. Coverage:
 
 * **Rail discovery** — including decoy frames, a missing rail, and a missing `document`.
@@ -176,36 +210,44 @@ and no install step. Coverage:
   monotonicity, the first step pinned to the "bent but not steep" 9–12px band, the peak never
   exceeding the frame width, the frame width equal to peak + 4 = 36px, two affected ticks per
   side, `12px` from the third tick outward, and `_markActive` never being rewritten.
+* **The 0.1.7 selector shape** — the distance rules chaining sibling `.P_mark` buttons (below)
+  and the `:has()` back-reference (above), and `transform:translateY(-50%)` pinned next to every
+  width so the built-in `scaleX` cannot multiply it.
+* **The gradient switch** — with it off the whole width family and the frame widening disappear
+  while thickness, side, and the preview rules stay; the settings-page sample follows the switch
+  (all ticks back to 12px, the card margin narrowing, the footnote swapping).
 * **Override CSS generation** — thickness, left and right side, the preview toggle, the height
   variable tracking line count and font size, `line-clamp`, font size paired with line height,
   the container-clamped width, rule convergence when the preview is off, brace balance, and the
   absence of `undefined` or `NaN`.
 * **Config normalization** — out-of-range clamping, invalid-value fallback, default detection.
-* **A full `apply()` against stub services** — dictionary registration, settings scope binding,
-  style mounting and refresh on config change, settings page registration (including `order`),
-  write receipts, the legacy-host session-staging path and its notice, the automatic back-fill
-  when the host catches up, the six `unset` calls behind "Restore defaults" and the disabled
-  button state, and cleanup.
+* **The local settings scope, against a stub `createSnapshotStore` with a localStorage back** —
+  rehydrating persisted values on construction, defaults filling missing fields, changes written
+  through on every update, and all seven fields cleared by "Restore defaults".
+* **A full `apply()` against stub services** — dictionary registration, the local scope
+  construction, style mounting and refresh on config change, settings page registration
+  (including `order`), and cleanup.
 * **The settings page component rendered directly** — the seven-tick sample, the width sequence
   `12 / 14 / 21 / 32 / 21 / 14 / 12`, the preview card clearing the longest tick by 48px, card
   heights of 144px / 198px / 252px, and font size, width, and line count following the config.
 
-`index.js` was exercised against a real profile: it resolves schemastery and builds the schema
-(defaults and out-of-range rejection verified by hand), and the registration call is verified
-against a stub settings service.
+`index.js` is a no-op stub since 1.4.0 and is covered by `node --check` only; the live behavior
+it used to carry (schemastery resolution and settings registration) has no replacement to test.
 
 **Not verified, and you should know it:** pixel-level aesthetics — the actual arc of the
 gradient, how the font size and card width feel — have not been checked by a machine, because
 no browser automation was available in the development environment. Judge those with your eyes.
-At the time of writing, a running host process can still hold the older 5-field schema; see
-[The Host Half and Its Module Cache](#-the-host-half-and-its-module-cache).
+The local-storage migration (values surviving a browser restart) and the 0.1.7 selector rewrite
+(32 / 21 / 14 / 12px visible again) were both exercised by hand on a live DSH Web instance at
+1.4.0 time; the automated suite covers the same code paths against stubs.
 
 ## 🚧 Known Boundaries
 
-* **Upstream coupling.** The only structural contract is "a `<prefix>_frame` that contains a
-  `<prefix>_mark`", plus the state classes `_markPreview` (hover) and `_markPosition` (the
-  wrapper around each tick). If upstream renames these, the gradient stops working silently —
-  no error, and no effect on conversations themselves.
+* **Upstream coupling.** The only structural contract is "a `<prefix>_frame` that contains
+  `<prefix>_mark` buttons as adjacent siblings", plus the state class `_markPreview` (hover) on
+  the tick itself. The `_markPosition` wrapper the distance selectors used before 0.1.7 is gone
+  upstream and is not coming back. If upstream renames these, the gradient stops working
+  silently — no error, and no effect on conversations themselves.
 * **`CSS :has()` is required** for the gradient (Chromium 105+). Browsers without it simply
   ignore those rules and ticks fall back to the built-in widths.
 * **The rail hides itself below 900px** of container width, via a shipped `@container` rule.
@@ -213,20 +255,47 @@ At the time of writing, a running host process can still hold the older 5-field 
 * **Thickness caps at 8px** because the tick row height is fixed at 10px; thicker ticks would
   overlap each other.
 * **The frame widening has a side effect.** To avoid clipping the 32px peak, the frame goes from
-  28px to 36px. That frame is the rail's hover and click surface, so the invisible interactive
-  strip on the right edge of the conversation is 8px wider: hovering there shows a preview card,
-  and clicking there jumps to a turn.
+  28px to 36px — but only while the gradient is on. That frame is the rail's hover and click
+  surface, so the invisible interactive strip on the right edge of the conversation is 8px wider:
+  hovering there shows a preview card, and clicking there jumps to a turn. Switching the gradient
+  off removes the widening and the strip returns to its shipped width.
 * **Preview font size and width affect the card only.** They do not touch the rail's own
   typography or the 28px of layout space it occupies, so enlarging them never squeezes the
   conversation text.
 * **Nothing changes from the third tick outward.** Ticks at distance ≥ 3 keep their built-in
   widths — 12px normally, 8px for unloaded turns, 20px for the active turn — so the rail as a
   whole still looks like the one DSH ships.
-* **The host module cache.** After editing `index.js` you must restart `dsh web`. This is a
-  consequence of Node's module cache combined with a `link:` install, and the plugin cannot work
-  around it.
+* **Mounting the bundle needs a host restart.** The composed plugin tree is built at startup, so
+  installing, removing, or re-enabling the bundle only takes effect after `dsh web` restarts — a
+  browser reload is not enough. (The settings themselves no longer wait for anything: they are
+  browser-local since 1.4.0.)
 
 ## 📚 Version History
+
+### 1.4.0
+
+* **Settings moved into the browser.** dsh 0.1.7 removed the client `settingsScope` service, so
+  the browser half now persists its configuration with `createSnapshotStore`
+  (`@deepseek-ai/dsh-client-store`) under the local storage key `dsh.chat-locator.settings`.
+  Settings survive browser restarts but no longer sync across browsers or machines, and any
+  `chat-locator:` section left in the DSH settings document by older versions is ignored — the
+  first run after upgrading shows factory values. "Restore defaults" still clears each field
+  individually through `unset`.
+* **The host half became a stub.** With nothing left to register, `index.js` is a no-op kept only
+  because the patch row resolves to it; the schemastery peer dependency is gone.
+* **The gradient selectors were rewritten for 0.1.7.** The built-in rail dropped the
+  `_markPosition` wrapper — ticks are now sibling `button.P_mark` elements — so every distance
+  rule matched nothing and the curve silently vanished. The chain now walks siblings below and
+  back-references with `:has()` above, and each width rule pins `transform:translateY(-50%)`
+  because 0.1.7 measures ticks as `20px × scaleX(.6/.9/1)` instead of literal widths.
+* **The length gradient got its own switch.** It is decorative — off returns the shipped look
+  with the rail, jumping, paging, and preview untouched — so `gradient` (default on) joins the
+  settings page, the sample, and "Restore defaults". Switching it off also drops the frame
+  widening, since no 32px peak needs room.
+* **Dead code removed.** The session-staging (`pending`) path, the `unsupported` status, the
+  "host settings document unavailable / read-only / legacy" notices and their strings, and the
+  back-fill logic are all gone. `LocatorPolicy` is now subscribe → adopt → update → reset, and the
+  debug hook no longer reports a settings status.
 
 ### 1.3.0
 

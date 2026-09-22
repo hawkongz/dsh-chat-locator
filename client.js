@@ -15,9 +15,9 @@
  *    从活动 DOM 上发现 CSS Module 的真实类名前缀（`<hash>_frame` / `<hash>_mark`），
  *    再按用户配置生成一层覆盖样式。前缀是运行时发现的，所以打包哈希变化、
  *    插件升级后依然成立。
- * 2. 配置走宿主设置文档：宿主半侧注册 `chat-locator` 命名空间，这里用
- *    `ctx.settingsScope.bind({ namespace })` 读写，重启浏览器/会话后仍在；
- *    「恢复默认」用作用域的 `unset(field)` 逐项清掉用户层，让字段退回 schema 默认，
+ * 2. 配置持久化：0.1.7 起宿主移除了 `settingsScope` 服务，改用浏览器本地
+ *    持久化（createSnapshotStore 的 persist，重启浏览器后仍在）；「恢复默认」
+ *    逐项 `unset(field)` 清掉用户选择，让字段退回内置默认，
  *    而不是把默认值再写一遍。
  * 3. 悬停预览保持**纯文本**：预览正文来自内置的轮次大纲（`turnOutline` 投影与
  *    已加载窗口的导航项），只取文本块、折叠空白、并按预算截断 —— 不含思考内容、
@@ -30,17 +30,61 @@ window.__ModuleLoader__.load({
 	id: 'dsh-chat-locator',
 	factory(require) {
 		const React = require('react');
+		const { createSnapshotStore } = require('@deepseek-ai/dsh-client-store');
+
+		/**
+		 * 0.1.7 移除了 `settingsScope` 客户端服务。这里用浏览器本地持久化
+		 * （createSnapshotStore 的 persist）造一个同形作用域，LocatorPolicy 无感：
+		 * getSnapshot() 返回 { value, status: 'ready', writable: true }，value 恒含
+		 * 全部 schema 字段（缺省补默认值）；set 直接落本地，unset 删键后由
+		 * getSnapshot 回退默认值。代价：设置只落本浏览器，不再进宿主设置文档跨端同步。
+		 * @param {string} namespace - 持久化键命名空间。
+		 * @param {ReadonlyArray<string>} fields - schema 字段表。
+		 * @param {Record<string, unknown>} defaults - 各字段出厂值。
+		 */
+		function createLocalSettingsScope(namespace, fields, defaults) {
+			const store = createSnapshotStore({}, { persist: { name: 'dsh.' + namespace + '.settings' } });
+			const merged = () => {
+				const raw = store.getSnapshot();
+				const value = {};
+				for (const field of fields) {
+					value[field] = Object.prototype.hasOwnProperty.call(raw, field) ? raw[field] : defaults[field];
+				}
+				return value;
+			};
+			return {
+				getSnapshot() {
+					return { value: merged(), status: 'ready', writable: true };
+				},
+				subscribe(listener) {
+					return store.subscribe(listener);
+				},
+				set(field, value) {
+					store.set({ ...store.getSnapshot(), [field]: value });
+					return Promise.resolve({ ok: true });
+				},
+				unset(field) {
+					const next = { ...store.getSnapshot() };
+					delete next[field];
+					store.set(next);
+					return Promise.resolve({ ok: true });
+				},
+			};
+		}
 
 		/** 本地化命名空间（同时用作设置页的文案键空间）。 */
 		const NS = 'chat-locator';
-		/** 宿主半侧注册的设置命名空间。 */
+		/**
+		 * 本地持久化命名空间。0.1.7 起宿主移除了 `settingsScope` 客户端服务，
+		 * 设置改落浏览器本地存储，键名 `dsh.chat-locator.settings`。
+		 */
 		const SETTINGS_NAMESPACE = 'chat-locator';
 		/** 覆盖样式标签的标识，便于排障与幂等更新。 */
 		const STYLE_TAG_ID = 'chat-locator/rail.css';
 		/** 版本，随排障钩子一起暴露。 */
-		const PLUGIN_VERSION = '1.3.0';
+		const PLUGIN_VERSION = '1.4.0';
 
-		/** 刻度行高固定 10px，8px 是横线粗细的实际上限（见宿主侧的 schema）。 */
+		/** 刻度行高固定 10px（内置轨道约定），8px 是横线粗细的实际上限。 */
 		const THICKNESS_MIN = 1;
 		const THICKNESS_MAX = 8;
 		const PREVIEW_LINES_MIN = 1;
@@ -57,9 +101,10 @@ window.__ModuleLoader__.load({
 		/** 轨道未出现时的重扫间隔（毫秒）；避免在流式渲染期间反复遍历 DOM。 */
 		const RESCAN_INTERVAL_MS = 400;
 
-		/** 与宿主 schema 默认值一致的兜底配置。 */
+		/** 出厂配置：本地持久化缺省时的兜底，也是「恢复默认」的目标。 */
 		const DEFAULTS = Object.freeze({
 			enabled: true,
+			gradient: true,
 			thickness: 2,
 			side: 'right',
 			previewLines: 3,
@@ -72,9 +117,11 @@ window.__ModuleLoader__.load({
 
 		const zh = {
 			nav: '对话定位条',
-			intro: '调整对话定位条：刻度横线粗细、轨道贴在左侧还是右侧、悬停预览的行数 / 字号 / 宽度。悬停时被指向的那根刻度最长，沿轨道向外按曲线依次收拢（32 / 21 / 14 / 12px）：紧挨着的那两格明显更短，之后缓缓收尾，是一条凸向轨道的弯钩，不是等差的直线。设置写入 DSH 设置文档，重启后依然生效；「恢复默认」可一键回到出厂值。',
+			intro: '调整对话定位条：刻度横线粗细、轨道贴在左侧还是右侧、悬停预览的行数 / 字号 / 宽度。悬停时被指向的那根刻度最长，沿轨道向外按曲线依次收拢（32 / 21 / 14 / 12px）：紧挨着的那两格明显更短，之后缓缓收尾，是一条凸向轨道的弯钩，不是等差的直线；长度渐变也可以单独关掉。设置保存在此浏览器的本地存储里，重启浏览器后依然生效，但不会跨浏览器或跨设备同步；「恢复默认」可一键回到出厂值。',
 			enableTitle: '显示对话定位条',
 			enableDesc: '关闭后整条轨道隐藏；对话内容、轮次跳转与历史分页都不受影响。',
+			gradientTitle: '长度渐变',
+			gradientDesc: '悬停那根刻度沿曲线收拢的加长效果：悬停处 32px，向外 21 / 14，再往外回到内置的 12px。关掉后所有刻度保持内置宽度，悬停不再单独加长；粗细、轨道侧与预览都不受影响。',
 			thicknessTitle: '横线粗细',
 			thicknessDesc: '每轮对话那根刻度的线宽，当前 {value}px。加粗只会让刻度更醒目，不会改变刻度间距。',
 			sideTitle: '轨道位置',
@@ -88,24 +135,24 @@ window.__ModuleLoader__.load({
 			widthTitle: '预览框宽度',
 			widthDesc: '预览卡的宽度，当前 {value}px；对话区较窄时会自动收缩，不会顶出可视范围。',
 			resetTitle: '恢复默认',
-			resetDesc: '把上面各项恢复成出厂值：粗细 2px、轨道在右侧、3 行、12px 字号、300px 宽。',
+			resetDesc: '把上面各项恢复成出厂值：渐变开、粗细 2px、轨道在右侧、3 行、12px 字号、300px 宽。',
 			resetDescDefault: '当前各项都已经是出厂值。',
 			reset: '恢复默认',
 			sampleTitle: '预览效果（示例）',
 			sampleNote: '小样：悬停的那根最长（32px，明显比邻居突出），向外每格依次 21 / 14，再往外是普通刻度 12px。长度沿一条凸向轨道的幂曲线收拢：紧挨着的那格掉得最多，之后越来越缓。',
+			sampleNoteOff: '小样：长度渐变已关闭 —— 所有刻度保持内置宽度（12px），悬停那根不再单独加长。',
 			samplePrompt: '把这段说明改写成三条要点',
 			sampleResponse: '已按要求整理：一、保留原意与语气；二、把重复表述合并到同一条；三、术语与原文保持一致，缩写首次出现时给全称。',
 			decrease: '减小',
 			increase: '增大',
-			unavailable: '宿主设置文档当前不可用，改动只在本次会话生效。',
-			readOnly: '宿主设置文档为只读，改动只在本次会话生效。',
-			hostLegacy: '宿主半侧还是旧版设置结构，{fields} 目前只在这次会话生效；重启一次 DSH 宿主（dsh web）后会自动写进设置文档并长期保留。',
 		};
 		const en = {
 			nav: 'Conversation locator',
-			intro: 'Tune the conversation locator: tick thickness, which side the track sits on, and the hover preview’s line count, font size, and width. While you hover, the pointed tick is the longest and the lengths step outward along a curve (32 / 21 / 14 / 12px): the two nearest ticks sit clearly lower, then it eases into the track — a hook bowing toward the track rather than a straight ramp. Settings are stored in the DSH settings document and survive restarts; Restore defaults puts everything back.',
+			intro: 'Tune the conversation locator: tick thickness, which side the track sits on, and the hover preview’s line count, font size, and width. While you hover, the pointed tick is the longest and the lengths step outward along a curve (32 / 21 / 14 / 12px): the two nearest ticks sit clearly lower, then it eases into the track — a hook bowing toward the track rather than a straight ramp; the length gradient can also be switched off on its own. Settings live in this browser’s local storage and survive a browser restart, but they do not sync across browsers or devices; Restore defaults puts everything back.',
 			enableTitle: 'Show the conversation locator',
 			enableDesc: 'Hides the whole track. Conversation content, turn jumps, and history paging are unaffected.',
+			gradientTitle: 'Length gradient',
+			gradientDesc: 'The curved taper that lengthens the hovered tick and its neighbours: 32px at the pointer, then 21 / 14 stepping outward, back to the built-in 12px beyond. With it off every tick keeps its built-in width; thickness, side, and the preview are unaffected.',
 			thicknessTitle: 'Tick thickness',
 			thicknessDesc: 'Line height of one turn tick, currently {value}px. Thicker ticks only read stronger; tick spacing is unchanged.',
 			sideTitle: 'Track side',
@@ -119,18 +166,16 @@ window.__ModuleLoader__.load({
 			widthTitle: 'Preview card width',
 			widthDesc: 'Width of the preview card, currently {value}px; it shrinks automatically inside a narrow conversation column.',
 			resetTitle: 'Restore defaults',
-			resetDesc: 'Puts everything above back to factory values: 2px thickness, right side, 3 lines, 12px text, 300px wide.',
+			resetDesc: 'Puts everything above back to factory values: gradient on, 2px thickness, right side, 3 lines, 12px text, 300px wide.',
 			resetDescDefault: 'Everything is already at its factory value.',
 			reset: 'Restore defaults',
 			sampleTitle: 'Preview (sample)',
 			sampleNote: 'Sample: the hovered tick is longest (32px, clearly ahead of its neighbours), then 21 / 14 stepping outward, and the regular 12px tick beyond. The falloff follows a power curve bowing toward the track: the first step drops the most, then it eases out.',
+			sampleNoteOff: 'Sample: the length gradient is off — every tick keeps its built-in width (12px) and the hovered one no longer lengthens.',
 			samplePrompt: 'Rewrite this note as three bullet points',
 			sampleResponse: 'Done: keep the original intent and tone; merge repeated statements into one point; keep terminology consistent and spell out abbreviations on first use.',
 			decrease: 'Decrease',
 			increase: 'Increase',
-			unavailable: 'The host settings document is unavailable; changes apply to this session only.',
-			readOnly: 'The host settings document is read-only; changes apply to this session only.',
-			hostLegacy: 'The host half still runs the previous settings schema, so {fields} applies to this session only; restart the DSH host (dsh web) once and the choice is written to the settings document automatically.',
 		};
 
 		//#region 配置存储
@@ -141,11 +186,12 @@ window.__ModuleLoader__.load({
 			return Math.min(max, Math.max(min, number));
 		}
 
-		/** 把任意来源（宿主文档、本地乐观写）的配置归一化成可用配置。 */
+		/** 把任意来源（本地存储的乐观写）的配置归一化成可用配置。 */
 		function normalizeSettings(raw) {
 			const source = raw !== null && typeof raw === 'object' ? raw : {};
 			return {
 				enabled: source.enabled !== false,
+				gradient: source.gradient !== false,
 				thickness: clampInteger(source.thickness, THICKNESS_MIN, THICKNESS_MAX, DEFAULTS.thickness),
 				side: source.side === 'left' ? 'left' : 'right',
 				previewLines: clampInteger(source.previewLines, PREVIEW_LINES_MIN, PREVIEW_LINES_MAX, DEFAULTS.previewLines),
@@ -157,6 +203,7 @@ window.__ModuleLoader__.load({
 		/** 配置等值判断，避免同一份设置反复触发重绘。 */
 		function sameSettings(left, right) {
 			return left.enabled === right.enabled
+				&& left.gradient === right.gradient
 				&& left.thickness === right.thickness
 				&& left.side === right.side
 				&& left.previewLines === right.previewLines
@@ -191,31 +238,25 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * 对话定位条配置策略：跟随宿主设置作用域，并把显式修改写回去。
-		 * 界面永远先读本地快照（乐观更新），宿主回执再由 adopt() 校正。
+		 * 对话定位条配置策略：跟随本地设置作用域，并把显式修改写回去。
+		 *
+		 * 0.1.7 起 `settingsScope` 服务被移除，作用域改由
+		 * `createLocalSettingsScope()` 在浏览器本地存储上现造（见文件头），
+		 * 因此这里不再有「宿主认不认字段」的分叉：getSnapshot 恒返回
+		 * ready/writable 的全字段快照，写入同步落盘，会话暂存（pending）
+		 * 与旧宿主补写（back-fill）整条链路在 0.1.7 起不再可达，已随之移除。
 		 */
 		class LocatorPolicy {
 			constructor(scope) {
 				this.scope = scope;
-				/**
-				 * 宿主半侧还没注册出来的字段 → 用户在本次会话里选的值。
-				 * 宿主 schema 是随插件代码走的，而宿主进程的模块缓存不会因为改文件就更新；
-				 * 于是「新加的配置项 + 旧版宿主半侧」会短暂共存。这里不让界面把这些选择悄悄丢掉：
-				 * 先留在会话里，等宿主重新注册出字段（重启一次）再自动补写。
-				 */
-				this.pending = new Map();
 				this.settings = createStore(normalizeSettings(undefined), sameSettings);
-				this.status = createStore(
-					{ status: 'loading', writable: false, unsupported: [] },
-					(left, right) => left.status === right.status && left.writable === right.writable && left.unsupported.join() === right.unsupported.join(),
-				);
 				this.stop = scope.subscribe(() => {
 					this.adopt();
 				});
 				this.adopt();
 			}
 
-			/** 把一次写入交给宿主作用域；失败只告警，不打断界面。 */
+			/** 把一次写入交给设置作用域；失败只告警，不打断界面。 */
 			publish(field, value) {
 				try {
 					const settlement = this.scope.set(field, value);
@@ -229,51 +270,27 @@ window.__ModuleLoader__.load({
 				}
 			}
 
-			/** 采纳宿主最新一段设置，不回写（攒下的会话选择除外）。 */
+			/** 采纳设置作用域最新的一段配置（本地 store 的每次变更也会走到这里）。 */
 			adopt() {
 				const snapshot = this.scope.getSnapshot();
 				const raw = snapshot.value !== null && typeof snapshot.value === 'object' ? snapshot.value : {};
-				const resolved = normalizeSettings(raw);
-				for (const [field, value] of [...this.pending]) {
-					// 界面先按会话里的选择渲染，避免宿主回执到达前后闪回默认值。
-					resolved[field] = value;
-					if (this.pending.has(field) && Object.prototype.hasOwnProperty.call(raw, field)) {
-						// 宿主已经认得这个字段（通常是重启之后）：把会话里攒的选择补写进去。
-						this.pending.delete(field);
-						this.publish(field, value);
-					}
-				}
-				this.settings.set(resolved);
-				this.status.set({
-					status: typeof snapshot.status === 'string' ? snapshot.status : 'ready',
-					writable: snapshot.writable === true,
-					unsupported: [...this.pending.keys()],
-				});
+				this.settings.set(normalizeSettings(raw));
 			}
 
-			/** 发布并持久化一次显式选择；宿主还不认的字段先留在会话里。 */
+			/** 发布并持久化一次显式选择。 */
 			update(field, value) {
 				const next = normalizeSettings({ ...this.settings.getSnapshot(), [field]: value });
 				this.settings.set(next);
-				const raw = this.scope.getSnapshot().value;
-				if (raw === null || typeof raw !== 'object' || !Object.prototype.hasOwnProperty.call(raw, field)) {
-					this.pending.set(field, next[field]);
-					this.status.set({ ...this.status.getSnapshot(), unsupported: [...this.pending.keys()] });
-					return;
-				}
-				this.pending.delete(field);
 				this.publish(field, next[field]);
 			}
 
 			/**
-			 * 恢复默认：逐项清空用户层（`unset`），字段于是退回宿主 schema 的默认值。
-			 * 不把默认值「再写一遍」—— 那会在设置文档里留下与默认值相同的显式覆盖，
+			 * 恢复默认：逐项清空用户层（`unset`），字段于是退回本地作用域的默认值。
+			 * 不把默认值「再写一遍」—— 那会在本地存储里留下与默认值相同的显式覆盖，
 			 * 之后内置改默认值时这些字段不会跟着动。
 			 */
 			reset() {
-				this.pending.clear();
 				this.settings.set(normalizeSettings(undefined));
-				this.status.set({ ...this.status.getSnapshot(), unsupported: [] });
 				for (const field of SETTINGS_FIELDS) {
 					try {
 						const settlement = this.scope.unset(field);
@@ -372,8 +389,8 @@ window.__ModuleLoader__.load({
 		const PREVIEW_CHROME_PX = 46;
 		/** 小样里预览卡离容器顶部的距离（px）。 */
 		const SAMPLE_CARD_TOP_PX = 32;
-		/** 小样里预览卡离容器侧边的距离：比最长刻度再外推 16px（真实轨道里卡片开在轨道外侧）。 */
-		const SAMPLE_CARD_OFFSET_PX = GRADIENT_PEAK_PX + 16;
+		/** 小样里预览卡比最长刻度再外推的距离（px）：真实轨道里卡片开在轨道外侧。 */
+		const SAMPLE_CARD_PEAK_MARGIN_PX = 16;
 
 		/** 由配置算出预览卡的字号、行高与需要的高度。 */
 		function previewMetrics(config) {
@@ -389,17 +406,20 @@ window.__ModuleLoader__.load({
 		/**
 		 * 生成「距悬停处以曲线收拢」的选择器对：上方第 d 格与下方第 d 格。
 		 *
-		 * 「距悬停处第几格」用 :has() 加相邻兄弟选择器表达 ——
-		 * `:has(.P_markPreview) + .P_markPosition` 是悬停处下面一格，
-		 * `:has(+ .P_markPosition .P_markPreview)` 是上面一格，链上几个 `+` 就是第几格。
-		 * 不支持 :has() 的浏览器只是这些规则不生效（长度回到内置值），不会出错。
+		 * 「距悬停处第几格」用 :has() 加相邻兄弟选择器表达。0.1.7 起内置轨道
+		 * （TurnNavigator）把 `_markPosition` 包裹层删掉了：刻度是 `_marks` 容器下
+		 * 互为相邻兄弟的 `button._mark`，悬停那根自带 `_markPreview` 类。于是
+		 * 「下方第 d 格」是从悬停刻度起链 d 个 `+ .P_mark`；「上方第 d 格」反过来
+		 * 用 `.P_mark:has(…)` 从候选刻度反向指向悬停刻度。链尾都落在 `::before`
+		 * 上（宽度与 transform 都写在它上面）。不支持 :has() 的浏览器只是这些
+		 * 规则不生效（长度回到内置值），不会出错。
 		 */
 		function gradientSelectorPair(prefix, distance) {
-			const position = '.' + prefix + '_markPosition';
-			const tick = ' .' + prefix + '_mark::before';
+			const mark = '.' + prefix + '_mark';
 			const anchor = '.' + prefix + '_markPreview';
-			const below = position + ':has(' + anchor + ')' + (' + ' + position).repeat(distance) + tick;
-			const above = position + ':has(' + ('+ ' + position + ' ').repeat(distance) + anchor + ')' + tick;
+			const below = [anchor, ...Array.from({ length: distance }, () => '+ ' + mark)].join(' ') + '::before';
+			const aboveChain = [...Array.from({ length: distance - 1 }, () => '+ ' + mark), '+ ' + anchor].join(' ');
+			const above = mark + ':has(' + aboveChain + ')::before';
 			return below + ',' + above;
 		}
 
@@ -412,9 +432,6 @@ window.__ModuleLoader__.load({
 			}
 			const radius = Math.max(1, Math.min(4, Math.round(config.thickness / 2)));
 			rules.push('.' + prefix + '_mark::before{height:' + config.thickness + 'px !important;border-radius:' + radius + 'px !important}');
-			// 裁剪盒：框架是刻度的 overflow 容器，加宽它才画得出比 28px 更长的悬停刻度
-			// （刻度右对齐，位置不变，多出来的宽度只是左侧余量）。
-			rules.push('.' + prefix + '_frame{width:' + RAIL_FRAME_WIDTH_PX + 'px !important}');
 			if (config.side === 'left') {
 				// 轨道镜像到左侧：框架贴左，刻度改为左对齐，预览改到轨道右边展开。
 				rules.push('.' + prefix + '_frame{right:auto !important;left:calc(12px - (var(--dsh-composer-side-clearance) + 16px)) !important}');
@@ -423,11 +440,23 @@ window.__ModuleLoader__.load({
 				rules.push('.' + prefix + '_preview{right:auto !important;left:calc(100% + 10px) !important}');
 				rules.push('@keyframes ' + prefix + '_dsh-turn-preview-enter{0%{opacity:0;transform:translate(-4px)}to{opacity:1;transform:translate(0)}}');
 			}
-			// 悬停处的曲线长度渐变：悬停那根 32px，向外 21 / 14，再往外是内置的 12px。
-			// 预览恒定生效 —— 定位条的存在意义就是浏览，没有理由把它关掉，所以这里不再有条件分支。
-			rules.push('.' + prefix + '_markPreview::before{width:' + GRADIENT_WIDTHS[0] + 'px !important}');
-			for (let distance = 1; distance < GRADIENT_WIDTHS.length; distance += 1) {
-				rules.push(gradientSelectorPair(prefix, distance) + '{width:' + GRADIENT_WIDTHS[distance] + 'px !important}');
+			if (config.gradient) {
+				// 裁剪盒：框架是刻度的 overflow 容器，加宽它才画得出比 28px 更长的悬停刻度
+				// （刻度右对齐，位置不变，多出来的宽度只是左侧余量）。渐变关掉时不加宽 ——
+				// 没有 32px 尖端要画，多出来的宽度只是白添一条隐形交互带。
+				rules.push('.' + prefix + '_frame{width:' + RAIL_FRAME_WIDTH_PX + 'px !important}');
+				// 悬停处的曲线长度渐变：悬停那根 32px，向外 21 / 14，再往外是内置的 12px。
+				// 与 1.3.0 删掉的「悬停预览开关」不同，这个开关关掉的只是加长动画：
+				// 轨道、跳转、分页与悬停预览全部照旧，回到的是内置外观，所以它是一个
+				// 合理的偏好项而不是功能自残。
+				// 每条宽度规则同时把 transform 压回 translateY(-50%)：0.1.7 起内置刻度是
+				// `width:20px` 加 `scaleX(.6/.9/1)` 量出来的，只改 width 会被内置的缩放
+				// 再乘一次（32px 会变成 28.8px）。去掉 scaleX 后宽度才是字面值，
+				// 这与 0.1.7 之前「内置直接给死宽度」的语义一致；transform-origin 随之失去意义。
+				rules.push('.' + prefix + '_markPreview::before{width:' + GRADIENT_WIDTHS[0] + 'px !important;transform:translateY(-50%) !important}');
+				for (let distance = 1; distance < GRADIENT_WIDTHS.length; distance += 1) {
+					rules.push(gradientSelectorPair(prefix, distance) + '{width:' + GRADIENT_WIDTHS[distance] + 'px !important;transform:translateY(-50%) !important}');
+				}
 			}
 			const metrics = previewMetrics(config);
 			// 预览卡高度跟着行数与字号走：内置把它钉死在 100px（`overflow:hidden` 再裁一刀），
@@ -510,12 +539,6 @@ window.__ModuleLoader__.load({
 			color: 'var(--dsw-alias-label-secondary)',
 			fontSize: '13px',
 			lineHeight: '20px',
-		};
-		const NOTICE = {
-			margin: '0 0 8px',
-			color: 'var(--dsw-alias-state-warn-primary)',
-			fontSize: '12px',
-			lineHeight: '18px',
 		};
 		const ROW = {
 			display: 'flex',
@@ -605,12 +628,6 @@ window.__ModuleLoader__.load({
 			cursor: 'pointer',
 			whiteSpace: 'nowrap',
 		};
-		/** 提示文案里用哪条本地化标题称呼某个字段。 */
-		const FIELD_LABELS = Object.freeze({
-			previewFontSize: 'fontSizeTitle',
-			previewWidth: 'widthTitle',
-		});
-
 		/** 开关（44×24 胶囊 + 滑块）。 */
 		function Toggle({ on, label, onToggle }) {
 			return React.createElement('button', {
@@ -694,19 +711,23 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * 设置页里的小样：用当前配置画一条缩微轨道与一张示例预览卡。
-		 * 轨道画的是「悬停状态」：中间那根是悬停（预览）刻度，向外按曲线收拢。
+		 * 轨道画的是「悬停状态」：中间那根是悬停（预览）刻度；渐变开着时向外按曲线
+		 * 收拢，关掉时所有刻度一律内置宽度（与真实轨道的两种状态一致）。
 		 */
 		function Sample({ config, t }) {
 			const side = config.side === 'left' ? 'left' : 'right';
 			const tickCount = 2 * GRADIENT_REACH + 1;
 			const hoveredIndex = GRADIENT_REACH;
 			const metrics = previewMetrics(config);
+			// 渐变关掉时悬停那根也不再伸长，卡片贴边量跟着峰值走，小样几何才自洽。
+			const peak = config.gradient ? GRADIENT_PEAK_PX : GRADIENT_BASE_PX;
 			const ticks = [];
 			for (let index = 0; index < tickCount; index += 1) {
-				// 与真实轨道同一套长度规则：悬停那根 32，向外 21 / 14，再往外 12。
+				// 与真实轨道同一套长度规则：悬停那根 32，向外 21 / 14，再往外 12；
+				// 渐变关闭时一律 12（内置宽度）。
 				const distance = Math.abs(index - hoveredIndex);
 				const hovered = distance === 0;
-				const width = gradientWidthAt(distance);
+				const width = config.gradient ? gradientWidthAt(distance) : GRADIENT_BASE_PX;
 				ticks.push(React.createElement('span', {
 					key: index,
 					style: {
@@ -725,7 +746,7 @@ window.__ModuleLoader__.load({
 				style: {
 					position: 'absolute',
 					top: SAMPLE_CARD_TOP_PX + 'px',
-					[side]: SAMPLE_CARD_OFFSET_PX + 'px',
+					[side]: (peak + SAMPLE_CARD_PEAK_MARGIN_PX) + 'px',
 					width: config.previewWidth + 'px',
 					boxSizing: 'border-box',
 					padding: '10px 12px',
@@ -775,9 +796,8 @@ window.__ModuleLoader__.load({
 		}
 
 		/** 「对话定位条」设置页。 */
-		function LocatorSection({ store, statusStore, update, reset, t }) {
+		function LocatorSection({ store, update, reset, t }) {
 			const config = React.useSyncExternalStore(store.subscribe, store.getSnapshot);
-			const status = React.useSyncExternalStore(statusStore.subscribe, statusStore.getSnapshot);
 			const row = (key, title, desc, control) => React.createElement('div', { style: ROW, key }, [
 				React.createElement('div', { style: ROW_TEXT, key: 'text' }, [
 					React.createElement('div', { style: ROW_TITLE, key: 'title' }, title),
@@ -789,24 +809,17 @@ window.__ModuleLoader__.load({
 			const children = [
 				React.createElement('p', { style: INTRO, key: 'intro' }, t('intro')),
 			];
-			if (status.status === 'unavailable' || (status.status === 'ready' && status.writable === false)) {
-				children.push(React.createElement('p', {
-					style: NOTICE,
-					key: 'notice',
-				}, status.status === 'unavailable' ? t('unavailable') : t('readOnly')));
-			}
-			if (Array.isArray(status.unsupported) && status.unsupported.length > 0) {
-				// 宿主半侧还没注册这些字段：本次会话照常生效，但不谎称已经存住。
-				children.push(React.createElement('p', {
-					style: NOTICE,
-					key: 'legacy-notice',
-				}, t('hostLegacy', { fields: status.unsupported.map((field) => t(FIELD_LABELS[field] ?? field)).join(' / ') })));
-			}
 			children.push(row(
 				'enable',
 				t('enableTitle'),
 				t('enableDesc'),
 				React.createElement(Toggle, { on: config.enabled, label: t('enableTitle'), onToggle: (value) => update('enabled', value) }),
+			));
+			children.push(row(
+				'gradient',
+				t('gradientTitle'),
+				t('gradientDesc'),
+				React.createElement(Toggle, { on: config.gradient, label: t('gradientTitle'), onToggle: (value) => update('gradient', value) }),
 			));
 			children.push(row(
 				'thickness',
@@ -891,7 +904,7 @@ window.__ModuleLoader__.load({
 			}, [
 				React.createElement('div', { key: 'title', style: ROW_TITLE }, t('sampleTitle')),
 				React.createElement(Sample, { key: 'body', config, t }),
-				React.createElement('div', { key: 'note', style: ROW_DESC }, t('sampleNote')),
+				React.createElement('div', { key: 'note', style: ROW_DESC }, config.gradient ? t('sampleNote') : t('sampleNoteOff')),
 			]));
 			return React.createElement('div', { style: SECTION }, children);
 		}
@@ -904,14 +917,14 @@ window.__ModuleLoader__.load({
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-chat-locator: dictionaries');
 			const t = ctx.locale.bind(NS);
-			const policy = new LocatorPolicy(ctx.settingsScope.bind({ namespace: SETTINGS_NAMESPACE }));
+			const policy = new LocatorPolicy(createLocalSettingsScope(SETTINGS_NAMESPACE, SETTINGS_FIELDS, DEFAULTS));
 			ctx.effect(() => () => policy.stop(), 'dsh-chat-locator: settings scope');
 			const presentation = mountRailOverrides(policy);
 			ctx.effect(() => presentation.dispose, 'dsh-chat-locator: rail overrides');
-			// 排障钩子：控制台执行 __dshChatLocator.state() 可看到发现的类名前缀与当前覆盖规则。
+			// 排障钩子：控制台执行 __dshChatLocator.state() 可看到发现的类名前缀、当前覆盖规则与生效配置。
 			const debug = {
 				version: PLUGIN_VERSION,
-				state: () => ({ ...presentation.state(), settingsStatus: policy.status.getSnapshot() }),
+				state: () => ({ ...presentation.state() }),
 			};
 			window.__dshChatLocator = debug;
 			ctx.effect(() => () => {
@@ -924,7 +937,6 @@ window.__ModuleLoader__.load({
 				label: () => t('nav'),
 				inject: () => ({
 					store: policy.settings,
-					statusStore: policy.status,
 					update: (field, value) => policy.update(field, value),
 					reset: () => policy.reset(),
 					t,
@@ -934,7 +946,7 @@ window.__ModuleLoader__.load({
 
 		return {
 			name: 'chat-locator',
-			inject: ['slots', 'locale', 'settingsScope'],
+			inject: ['slots', 'locale'],
 			apply,
 			// 纯函数出口：宿主/测试可直接校验「类名前缀发现」与「覆盖样式生成」，
 			// 不参与运行时行为，也不改变上面的插件形状。

@@ -1,6 +1,6 @@
 {
   "name": "dsh-chat-locator",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Turn-rail settings for the DSH Web conversation locator: tick thickness, rail side, a curved length gradient anchored on the hovered tick, and a plain-text hover preview with adjustable line count, font size, and width.",
   "keywords": [
     "dsh",
@@ -49,14 +49,10 @@
     "node": ">=20"
   },
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "*",
     "@deepseek-ai/cordis": "*",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/schemastery": {
-      "optional": true
-    },
     "@deepseek-ai/cordis": {
       "optional": true
     },
@@ -76,6 +72,7 @@
       "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-store",
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-locale"

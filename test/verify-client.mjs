@@ -29,8 +29,45 @@ const reactStub = {
 	useId: () => 'stub-id',
 	useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot(),
 };
+/** 沙箱内注入的 localStorage（由 apply 侧求值前赋值），桩的持久化走它。 */
+let sandboxLocalStorage = undefined;
 const requireStub = (spec) => {
 	if (spec === 'react') return reactStub;
+	if (spec === '@deepseek-ai/dsh-client-store') {
+		return {
+			/**
+			 * 快照存储桩：与 dsh-client-store 的 getSnapshot/subscribe/set 同形，
+			 * 并模拟 attachPersistence 的 localStorage 往返（创建时 rehydrate、
+			 * set 时 JSON 写回），否则本地持久化路径测不到。
+			 */
+			createSnapshotStore: (initial, options) => {
+				let state = initial;
+				const listeners = new Set();
+				const name = options?.persist?.name;
+				const storage = sandboxLocalStorage;
+				if (name && typeof storage !== 'undefined') {
+					try {
+						const raw = storage.getItem(name);
+						if (raw !== null) state = JSON.parse(raw);
+					} catch { /* 损坏数据当作不存在 */ }
+				}
+				const flush = () => {
+					if (name && typeof storage !== 'undefined') {
+						try { storage.setItem(name, JSON.stringify(state)); } catch { /* 配额满忽略 */ }
+					}
+					for (const fn of listeners) fn();
+				};
+				return {
+					getSnapshot: () => state,
+					subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
+					set: (next) => {
+						state = next;
+						flush();
+					},
+				};
+			},
+		};
+	}
 	throw new Error(`verify-client: unexpected require(${JSON.stringify(spec)})`);
 };
 
@@ -159,20 +196,32 @@ const metricsDefault = previewMetrics({ previewFontSize: 12, previewLines: 3 });
 check('默认 12px / 3 行 → 行高 18、卡片 100px', metricsDefault.lineHeight === 18 && metricsDefault.height === 100, JSON.stringify(metricsDefault));
 check('18px / 6 行 → 行高 27、卡片 208px', JSON.stringify(previewMetrics({ previewFontSize: 18, previewLines: 6 })) === JSON.stringify({ lineHeight: 27, promptSize: 19, promptLineHeight: 29, height: 208 }), JSON.stringify(previewMetrics({ previewFontSize: 18, previewLines: 6 })));
 
-// 刻度长度渐变：锚点是悬停（预览）那根 —— 悬停处 30，向外 23 / 18 / 14 / 13，
+// 刻度长度渐变：锚点是悬停（预览）那根 —— 悬停处 32，向外 21 / 14，
 // 其余保持内置宽度（普通 12 / 未加载 8 / 选中 20）。渐变不碰选中轮。
-check('悬停（预览）刻度最长（32px）', right.includes('.eGxaPq_markPreview::before{width:32px !important}'), right);
-check('上下 1 格缩到 21px', right.includes('.eGxaPq_markPosition:has(.eGxaPq_markPreview) + .eGxaPq_markPosition .eGxaPq_mark::before,.eGxaPq_markPosition:has(+ .eGxaPq_markPosition .eGxaPq_markPreview) .eGxaPq_mark::before{width:21px !important}'));
-// 渐变末端（悬停向外第 2 格）的规则：两侧各要链满 2 个相邻兄弟 `+`，才正好指向「距悬停处第 2 格」。
+// 0.1.7 起内置刻度是 _marks 容器下互为相邻兄弟的 button：选择器走相邻兄弟链，
+// 且每条宽度规则同时把 transform 压回 translateY(-50%)（内置用 scaleX 量宽度）。
+check('悬停（预览）刻度最长（32px）且去掉内置 scaleX', right.includes('.eGxaPq_markPreview::before{width:32px !important;transform:translateY(-50%) !important}'), right);
+check('上下 1 格缩到 21px（下方相邻兄弟 + 上方 :has 反向指）', right.includes('.eGxaPq_markPreview + .eGxaPq_mark::before,.eGxaPq_mark:has(+ .eGxaPq_markPreview)::before{width:21px !important;transform:translateY(-50%) !important}'));
+// 渐变末端（悬停向外第 2 格）的规则：下方从悬停刻度链 2 个 `+ .P_mark`，
+// 上方用 :has() 经 1 个中间刻度反向指回悬停刻度 —— 两侧都正好落在「距悬停处第 2 格」。
 const ruleEndingWith = (css, tail) => (css.match(new RegExp('[^{}]*' + tail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))) ?? [''])[0];
-const rule14 = ruleEndingWith(right, '{width:14px !important}');
-check('悬停向外第 2 格（渐变末端）缩到 14px，且两侧各链 2 个相邻兄弟', rule14 !== '' && (rule14.match(/\+ \.eGxaPq_markPosition/g) ?? []).length === 4, rule14);
+const rule14 = ruleEndingWith(right, '{width:14px !important');
+check('悬停向外第 2 格（渐变末端）缩到 14px：下方链 2 格、上方反向指回悬停刻度', rule14 !== '' && rule14.includes('.eGxaPq_markPreview + .eGxaPq_mark + .eGxaPq_mark::before') && rule14.includes('.eGxaPq_mark:has(+ .eGxaPq_mark + .eGxaPq_markPreview)::before'), rule14);
 check('框架加宽到 36px（给 32px 尖端留出裁剪盒）', right.includes('.eGxaPq_frame{width:36px !important}'), right);
 check('左侧轨道同样加宽框架', left.includes('.eGxaPq_frame{width:36px !important}'));
 check('关闭定位条时不加宽框架', !disabled.includes('width:36px'));
 check('更远处不重写长度（沿用内置 12px）', !right.includes('width:12px !important'));
 check('渐变不锚定选中轮（markActive 宽度不被改写）', !right.includes('markActive::before{width'), right);
-check('左侧轨道同样带长度渐变', left.includes('.eGxaPq_markPreview::before{width:32px !important}') && left.includes('width:21px !important') && left.includes('width:14px !important'));
+check('左侧轨道同样带长度渐变', left.includes('.eGxaPq_markPreview::before{width:32px !important;transform:translateY(-50%) !important}') && left.includes('width:21px !important') && left.includes('width:14px !important'));
+
+// 长度渐变开关：关掉后整族宽度规则（悬停峰值 + 距离链）与框架加宽一起消失，
+// 回到内置外观；粗细、轨道侧与预览卡的规则一条不受影响。
+const noGradient = railStyleText('eGxaPq', { ...base, gradient: false });
+check('关闭渐变时不写悬停峰值与距离链', !noGradient.includes('markPreview::before{width') && !noGradient.includes(':has('), noGradient);
+check('关闭渐变时框架不加宽（保持内置 28px，不白添交互带）', !noGradient.includes('width:36px'), noGradient);
+check('关闭渐变时刻度粗细仍然生效', noGradient.includes('.eGxaPq_mark::before{height:5px !important;border-radius:3px !important}'));
+check('关闭渐变时预览卡规则仍在', noGradient.includes('.eGxaPq_preview{width:min(300px, 100cqw - 120px) !important}') && noGradient.includes('--turn-preview-height:100px !important'));
+check('关闭渐变且左侧时仍镜像轨道', railStyleText('eGxaPq', { ...base, side: 'left', gradient: false }).includes('_frame{right:auto !important'));
 
 for (const [label, css] of [['right', right], ['left', left]]) {
 	const balanced = (css.match(/\{/g) ?? []).length === (css.match(/\}/g) ?? []).length;
@@ -194,8 +243,9 @@ check('非数字字号回落默认', normalizeSettings({ previewFontSize: 'big' 
 check(`预览宽度越界夹到 ${PREVIEW_WIDTH_MAX}`, normalizeSettings({ previewWidth: 9999 }).previewWidth === PREVIEW_WIDTH_MAX);
 check(`预览宽度低于下限夹到 ${PREVIEW_WIDTH_MIN}`, normalizeSettings({ previewWidth: 10 }).previewWidth === PREVIEW_WIDTH_MIN);
 check('显式 false 保留', normalizeSettings({ enabled: false }).enabled === false && normalizeSettings({}).enabled === true);
-check('默认值判定（sameSettings）认得全字段', sameSettings(normalizeSettings(undefined), DEFAULTS) === true && sameSettings(normalizeSettings({ previewWidth: 320 }), DEFAULTS) === false);
-check('恢复默认覆盖全部可持久化字段', JSON.stringify(SETTINGS_FIELDS) === JSON.stringify(['enabled', 'thickness', 'side', 'previewLines', 'previewFontSize', 'previewWidth']), JSON.stringify(SETTINGS_FIELDS));
+check('渐变可显式关闭', normalizeSettings({ gradient: false }).gradient === false && normalizeSettings({}).gradient === true);
+check('默认值判定（sameSettings）认得全字段', sameSettings(normalizeSettings(undefined), DEFAULTS) === true && sameSettings(normalizeSettings({ previewWidth: 320 }), DEFAULTS) === false && sameSettings(normalizeSettings({ gradient: false }), DEFAULTS) === false);
+check('恢复默认覆盖全部可持久化字段', JSON.stringify(SETTINGS_FIELDS) === JSON.stringify(['enabled', 'gradient', 'thickness', 'side', 'previewLines', 'previewFontSize', 'previewWidth']), JSON.stringify(SETTINGS_FIELDS));
 
 // ---------------------------------------------------------------------------
 // apply 端到端（桩服务 + 桩 DOM）：覆盖装载期真正跑的那条路径 ——
@@ -217,46 +267,31 @@ const styleTagOf = () => createdNodes.find((node) => node.tag === 'style');
 
 const windowApplyStub = { __ModuleLoader__: { load: (loaded) => { applyDefinition = loaded; } } };
 let applyDefinition;
-new Function('window', 'document', source)(windowApplyStub, documentStub);
-if (applyDefinition === undefined) throw new Error('verify-client: apply 侧的工厂没有被捕获');
 
 const dictionaries = [];
 const registeredSlots = [];
-const scopeWrites = [];
-const scopeUnsets = [];
 const disposers = [];
 const t = (key, params) => {
 	const dict = dictionaries.at(-1)?.dicts?.zh ?? {};
 	const template = dict[key] ?? key;
 	return params === undefined ? template : template.replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match));
 };
-// 桩作用域做成会广播的小 store：既覆盖「写回宿主」的回执路径，
-// 也覆盖「宿主重新注册出字段后自动补写」的自愈路径。
-// 初始 value 是**旧版宿主半侧**的完整解（v1.1.0 只有这 5 个字段，没有字号/宽度）。
-const hostState = { status: 'ready', value: { enabled: true, thickness: 4, side: 'left', previewLines: 3 }, writable: true, revision: 1 };
-const scopeListeners = new Set();
-const notifyScope = () => {
-	for (const listener of [...scopeListeners]) listener();
+// 本地持久化桩：0.1.7 起 settingsScope 服务被移除，插件的设置改落浏览器
+// localStorage（键 dsh.chat-locator.settings）。这里预置一份存量配置，
+// 覆盖「采纳已存设置」与「改动即时写回」两条路径。
+const PERSIST_KEY = 'dsh.chat-locator.settings';
+const localStorageStub = {
+	backing: new Map([[
+		PERSIST_KEY,
+		JSON.stringify({ enabled: true, thickness: 4, side: 'left', previewLines: 3 }),
+	]]),
+	getItem: (name) => (localStorageStub.backing.has(name) ? localStorageStub.backing.get(name) : null),
+	setItem: (name, value) => localStorageStub.backing.set(name, String(value)),
+	removeItem: (name) => localStorageStub.backing.delete(name),
 };
-const scope = {
-	getSnapshot: () => ({ ...hostState, value: { ...hostState.value } }),
-	subscribe: (listener) => {
-		scopeListeners.add(listener);
-		return () => scopeListeners.delete(listener);
-	},
-	set: (field, value) => {
-		scopeWrites.push([field, value]);
-		hostState.value = { ...hostState.value, [field]: value };
-		notifyScope();
-		return Promise.resolve();
-	},
-	unset: (field) => {
-		scopeUnsets.push(field);
-		const { [field]: _dropped, ...rest } = hostState.value;
-		hostState.value = rest;
-		notifyScope();
-		return Promise.resolve();
-	},
+const persistedOf = () => {
+	const raw = localStorageStub.backing.get(PERSIST_KEY);
+	return raw === undefined ? {} : JSON.parse(raw);
 };
 const ctxStub = {
 	effect: (fn) => {
@@ -271,7 +306,6 @@ const ctxStub = {
 		},
 		bind: () => t,
 	},
-	settingsScope: { bind: (spec) => ({ spec, ...scope }) },
 	slots: {
 		inject: (name, callback) => {
 			registeredSlots.push({ name, entry: callback() });
@@ -280,19 +314,22 @@ const ctxStub = {
 	},
 };
 
+new Function('window', 'document', 'localStorage', source)(windowApplyStub, documentStub, localStorageStub);
+sandboxLocalStorage = localStorageStub;
+if (applyDefinition === undefined) throw new Error('verify-client: apply 侧的工厂没有被捕获');
 const applyPlugin = applyDefinition.factory(requireStub);
 applyPlugin.apply(ctxStub);
 
 console.log('');
 console.log('apply（桩服务）');
 check('注册了 chat-locator 字典（zh/en）', dictionaries.length === 1 && dictionaries[0].ns === 'chat-locator' && typeof dictionaries[0].dicts?.zh?.nav === 'string' && typeof dictionaries[0].dicts?.en?.nav === 'string');
-check('设置作用域绑定到同名命名空间', ctxStub.settingsScope !== undefined && registeredSlots.length === 1);
+check('0.1.7 起不再依赖 settingsScope（inject 仅 slots/locale）', JSON.stringify(applyPlugin.inject) === JSON.stringify(['slots', 'locale']), JSON.stringify(applyPlugin.inject));
 check('设置页注册在 settings.section 的 chat-locator 格', registeredSlots[0].name === 'settings.section' && registeredSlots[0].entry.options.id === 'chat-locator' && registeredSlots[0].entry.options.order === 41);
 check('设置页导航名走本地化', registeredSlots[0].entry.options.label() === '对话定位条', registeredSlots[0].entry.options.label());
 check('设置页拿到 store / update / reset / t', typeof registeredSlots[0].entry.options.inject().store?.getSnapshot === 'function' && typeof registeredSlots[0].entry.options.inject().update === 'function' && typeof registeredSlots[0].entry.options.inject().reset === 'function' && registeredSlots[0].entry.options.inject().t === t);
 const injected = registeredSlots[0].entry.options.inject();
-check('配置从宿主设置段采纳（thickness=4 / side=left）', injected.store.getSnapshot().thickness === 4 && injected.store.getSnapshot().side === 'left', JSON.stringify(injected.store.getSnapshot()));
-check('缺失的宿主字段落到默认值（字号 12 / 宽度 300）', injected.store.getSnapshot().previewFontSize === DEFAULTS.previewFontSize && injected.store.getSnapshot().previewWidth === DEFAULTS.previewWidth, JSON.stringify(injected.store.getSnapshot()));
+check('配置从本地持久化采纳（thickness=4 / side=left）', injected.store.getSnapshot().thickness === 4 && injected.store.getSnapshot().side === 'left', JSON.stringify(injected.store.getSnapshot()));
+check('缺失的本地字段落到默认值（字号 12 / 宽度 300）', injected.store.getSnapshot().previewFontSize === DEFAULTS.previewFontSize && injected.store.getSnapshot().previewWidth === DEFAULTS.previewWidth, JSON.stringify(injected.store.getSnapshot()));
 
 const styleTag = styleTagOf();
 check('挂载了自有覆盖样式标签', styleTag !== undefined && styleTag.dataset.pluginCss === 'chat-locator/rail.css');
@@ -300,21 +337,21 @@ check('覆盖样式按发现的前缀与配置生成', styleTag.textContent.incl
 check('覆盖样式带上曲线渐变的四档长度', [32, 21, 14].every((width) => styleTag.textContent.includes(`width:${width}px !important`)), styleTag.textContent);
 
 const debug = windowApplyStub.__dshChatLocator;
-check('排障钩子暴露版本与状态', debug?.version === '1.3.0' && debug.state().railPrefix === 'eGxaPq' && debug.state().railFound === true, JSON.stringify(debug?.version));
-check('排障钩子带上宿主设置状态', debug.state().settingsStatus.status === 'ready' && debug.state().settingsStatus.writable === true);
+check('排障钩子暴露版本与状态', debug?.version === '1.4.0' && debug.state().railPrefix === 'eGxaPq' && debug.state().railFound === true, JSON.stringify(debug?.version));
+check('排障钩子带上生效配置（本地持久化值 + 缺省补默认）', debug.state().config.thickness === 4 && debug.state().config.side === 'left' && debug.state().config.previewFontSize === DEFAULTS.previewFontSize && debug.state().config.previewWidth === DEFAULTS.previewWidth, JSON.stringify(debug.state().config));
+check('0.1.7 起排障钩子不再带 settingsStatus（会话暂存链路已移除）', debug.state().settingsStatus === undefined, JSON.stringify(debug.state().settingsStatus));
 
 injected.update('thickness', 6);
 check('改动先落本地快照', injected.store.getSnapshot().thickness === 6);
-check('改动写回宿主设置段', scopeWrites.length === 1 && scopeWrites[0][0] === 'thickness' && scopeWrites[0][1] === 6, JSON.stringify(scopeWrites));
+check('改动写回本地持久化', persistedOf().thickness === 6, JSON.stringify(persistedOf()));
 check('改动即时反映到覆盖样式', styleTag.textContent.includes('height:6px'), styleTag.textContent);
 
-// 宿主半侧还是旧 schema 时的模拟：设置段里没有 previewWidth，
-// 这次选择先留在会话里，而不是交给旧 schema 丢掉。
-const writesBeforeWidth = scopeWrites.length;
+// 本地持久化没有「旧 schema 不认字段」的问题：任何字段的首次改动都直接落盘，
+// 界面的「仅本次会话生效」提示永远不该出现。
 injected.update('previewWidth', 360);
-check('宿主还不认的字段先不写（避免被旧 schema 丢掉）', scopeWrites.length === writesBeforeWidth, JSON.stringify(scopeWrites.slice(writesBeforeWidth)));
-check('宿主还不认的字段仍即时生效', injected.store.getSnapshot().previewWidth === 360 && styleTag.textContent.includes('.eGxaPq_preview{width:min(360px, 100cqw - 120px) !important}'), styleTag.textContent);
-check('会话内暂存的字段记进状态（界面据此提示）', JSON.stringify(debug.state().settingsStatus.unsupported) === JSON.stringify(['previewWidth']), JSON.stringify(debug.state().settingsStatus.unsupported));
+check('新字段首次改动也即时持久化', persistedOf().previewWidth === 360, JSON.stringify(persistedOf()));
+check('改动仍即时生效', injected.store.getSnapshot().previewWidth === 360 && styleTag.textContent.includes('.eGxaPq_preview{width:min(360px, 100cqw - 120px) !important}'), styleTag.textContent);
+check('0.1.7 起设置页注入面不再带 statusStore（宿主链路已移除）', injected.statusStore === undefined && Object.keys(injected).sort().join() === 'reset,store,t,update', JSON.stringify(Object.keys(injected).sort()));
 
 // ---------------------------------------------------------------------------
 // 设置页渲染（直接调用组件 + 极简 React 桩）：小样的曲线渐变与随字号/行数长高的框。
@@ -361,51 +398,56 @@ check('小样预览卡用当前宽度', cardOf(sectionNodes)?.props?.style?.widt
 const legacyNotices = (nodes) => nodes
 	.map((node) => (typeof node?.children?.[0] === 'string' ? node.children[0] : ''))
 	.filter((text) => text.includes('重启一次 DSH 宿主'));
-check('宿主半侧是旧结构时界面如实提示（不谎称已存住）', legacyNotices(sectionNodes).length === 1 && legacyNotices(sectionNodes)[0].includes('预览框宽度'), JSON.stringify(legacyNotices(sectionNodes)));
+check('本地持久化模式下不出现「仅本次会话生效」提示', legacyNotices(sectionNodes).length === 0, JSON.stringify(legacyNotices(sectionNodes)));
 
 injected.update('previewLines', 6);
 sectionNodes = flatten(Section(injected));
 check('行数改到 6 后小样继续长高（154+44=198px）', containerOf(sectionNodes)?.props?.style?.height === '198px', JSON.stringify(containerOf(sectionNodes)?.props?.style?.height));
 check('小样预览卡行数跟随配置', responseOf(sectionNodes)?.props?.style?.WebkitLineClamp === 6, JSON.stringify(responseOf(sectionNodes)?.props?.style?.WebkitLineClamp));
 check('行数 6 也写进真实轨道的覆盖样式', styleTag.textContent.includes('--turn-preview-height:154px !important'), styleTag.textContent);
+check('行数 6 同步写进本地持久化', persistedOf().previewLines === 6, JSON.stringify(persistedOf()));
 
 injected.update('previewFontSize', 18);
 sectionNodes = flatten(Section(injected));
 check('字号改到 18 后小样再长高（208+44=252px）', containerOf(sectionNodes)?.props?.style?.height === '252px', JSON.stringify(containerOf(sectionNodes)?.props?.style?.height));
 check('字号 18 也写进真实轨道的覆盖样式', styleTag.textContent.includes('--turn-preview-height:208px !important') && styleTag.textContent.includes('font-size:18px !important'), styleTag.textContent);
 check('字号改后小样预览卡字号跟随', responseOf(sectionNodes)?.props?.style?.fontSize === '18px' && responseOf(sectionNodes)?.props?.style?.lineHeight === '27px');
+check('字号 18 同步写进本地持久化', persistedOf().previewFontSize === 18, JSON.stringify(persistedOf()));
 
-// 宿主重启后重新注册出这两个字段：会话里攒下的选择自动补写，提示随之消失。
-hostState.value = { ...hostState.value, previewFontSize: 12, previewWidth: 300 };
-notifyScope();
-check('宿主重新认得字段后自动补写字号', scopeWrites.some(([field, value]) => field === 'previewFontSize' && value === 18), JSON.stringify(scopeWrites));
-check('宿主重新认得字段后自动补写宽度', scopeWrites.some(([field, value]) => field === 'previewWidth' && value === 360), JSON.stringify(scopeWrites));
-check('补写后会话暂存清空', JSON.stringify(debug.state().settingsStatus.unsupported) === '[]', JSON.stringify(debug.state().settingsStatus.unsupported));
-check('补写后本地快照仍是用户选的值', injected.store.getSnapshot().previewFontSize === 18 && injected.store.getSnapshot().previewWidth === 360, JSON.stringify(injected.store.getSnapshot()));
-sectionNodes = flatten(Section(injected));
-check('补写后提示消失', legacyNotices(sectionNodes).length === 0, JSON.stringify(legacyNotices(sectionNodes)));
-
-// 「恢复默认」：逐项清空用户层（unset），字段于是退回宿主 schema 默认值。
+// 「恢复默认」：逐项 unset 清掉本地存储里的用户值，字段经 getSnapshot
+// 回退到内置默认值；本地存储不再留任何用户覆盖。
 check('改动过配置时「恢复默认」可用', resetButtonOf(sectionNodes)?.props?.disabled === false);
-const writesBeforeReset = scopeWrites.length;
 injected.reset();
-check(`恢复默认逐项清空全部 ${SETTINGS_FIELDS.length} 个字段`, scopeUnsets.length === SETTINGS_FIELDS.length && JSON.stringify(scopeUnsets) === JSON.stringify([...SETTINGS_FIELDS]), JSON.stringify(scopeUnsets));
+check('恢复默认清空本地存储里的全部用户覆盖', Object.keys(persistedOf()).length === 0, JSON.stringify(persistedOf()));
 check('恢复默认把本地快照拉回出厂值', sameSettings(injected.store.getSnapshot(), DEFAULTS) === true, JSON.stringify(injected.store.getSnapshot()));
-check('恢复默认只 unset、不把默认值再写一遍', scopeWrites.length === writesBeforeReset, JSON.stringify(scopeWrites));
 sectionNodes = flatten(Section(injected));
 check('已是默认值时「恢复默认」置灰', resetButtonOf(sectionNodes)?.props?.disabled === true);
 check('已是默认值时小样高度也回到 144px', containerOf(sectionNodes)?.props?.style?.height === '144px');
 
-// 悬停预览不再有开关：定位条本身就是用来浏览的，所以设置页不该再出现这一行，
-// 小样也恒定渲染预览卡与渐变注脚。
+// 悬停预览没有开关（定位条本身就是用来浏览的），但长度渐变有：关掉它只是回到
+// 内置外观，预览、跳转与分页都不受影响。设置页因此多一行「长度渐变」开关。
 const titleOf = (nodes) => nodes
 	.filter((node) => Array.isArray(node?.children) && node.children.length === 1 && typeof node.children[0] === 'string')
 	.map((node) => node.children[0]);
 const titles = titleOf(sectionNodes);
-check('设置页不再有「悬停预览」开关行', !titles.includes('悬停预览'), JSON.stringify(titles));
+check('设置页没有「悬停预览」开关行', !titles.includes('悬停预览'), JSON.stringify(titles));
+check('设置页有「长度渐变」开关行', titles.includes('长度渐变'), JSON.stringify(titles));
 check('预览的行数 / 字号 / 宽度三行仍在', ['预览正文行数', '预览字号', '预览框宽度'].every((title) => titles.includes(title)), JSON.stringify(titles));
 check('小样恒定渲染预览卡', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.includes('把这段说明改写成三条要点')));
-check('小样注脚恒定是渐变说明', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.some((child) => typeof child === 'string' && child.startsWith('小样：'))));
+check('渐变开着时小样注脚是渐变说明', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.some((child) => typeof child === 'string' && child.startsWith('小样：悬停的那根最长'))));
+
+// 关掉长度渐变：小样所有刻度回到内置 12px、卡片贴边量跟着收窄、注脚换成关闭说明；
+// 真实轨道的覆盖样式同帧去掉整族宽度规则（CSS 层断言见 railStyleText 段）。
+injected.update('gradient', false);
+check('关闭渐变写进本地持久化', persistedOf().gradient === false, JSON.stringify(persistedOf()));
+sectionNodes = flatten(Section(injected));
+check('关闭渐变后小样刻度全部回到内置 12px', ticksOf(sectionNodes).every((node) => node.props.style.width === '12px'), JSON.stringify(ticksOf(sectionNodes).map((node) => node.props.style.width)));
+check('关闭渐变后小样预览卡贴边量收窄到 12+16px', (cardOf(sectionNodes)?.props?.style?.right ?? cardOf(sectionNodes)?.props?.style?.left) === '28px', JSON.stringify(cardOf(sectionNodes)?.props?.style));
+check('关闭渐变后小样注脚换成关闭说明', sectionNodes.some((node) => Array.isArray(node?.children) && node.children.some((child) => typeof child === 'string' && child.startsWith('小样：长度渐变已关闭'))));
+check('关闭渐变时真实轨道覆盖样式不带任何宽度渐变', !styleTag.textContent.includes('markPreview::before{width') && !styleTag.textContent.includes('_frame{width:36px'), styleTag.textContent);
+injected.update('gradient', true);
+sectionNodes = flatten(Section(injected));
+check('重新打开渐变后小样恢复 4 档长度', JSON.stringify(ticksOf(sectionNodes).map((node) => node.props.style.width)) === JSON.stringify(['12px', '14px', '21px', '32px', '21px', '14px', '12px']));
 
 for (const disposer of [...disposers].reverse()) if (typeof disposer === 'function') disposer();
 check('清理后移除样式标签', styleTag.removed === true);

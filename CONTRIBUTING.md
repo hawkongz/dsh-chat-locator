@@ -47,7 +47,7 @@ Node.js 20 or newer and nothing else.
 git clone https://github.com/hawkongz/dsh-chat-locator.git
 cd dsh-chat-locator
 
-# 2. Run the test suite (115 assertions, no install step)
+# 2. Run the test suite (125 assertions, no install step)
 node test/verify-client.mjs
 ```
 
@@ -71,19 +71,22 @@ dsh web
 
 ### The two-half reload rule
 
-This is the single most surprising thing about developing this plugin:
+Since 1.4.0 only one half matters for development:
 
 | Changed file | How it takes effect |
 | :--- | :--- |
 | `client.js` (browser half) | Automatically. The page re-hashes the client module on reload; just refresh. |
-| `index.js` (host half) | **Only after restarting `dsh web`.** The host process caches the imported module, and a `link:`-installed workspace directory is not in the HMR watch roots. Neither HMR nor toggling the bundle re-imports it. |
+| `index.js` (host half) | Nothing to reload. It is a no-op stub kept only because the patch row resolves to it; reinstalling or removing the bundle still needs a `dsh web` restart. |
 
-`docs/design-notes.md` documents the probe experiment that established this.
+Mounting or unmounting the bundle itself always needs a `dsh web` restart — the composed plugin
+tree is built at startup.
 
 ## Code conventions
 
-* **Zero dependencies.** Do not add a runtime dependency. `@deepseek-ai/schemastery`,
-  `@deepseek-ai/cordis`, and `react` are optional peer dependencies resolved at runtime.
+* **Zero dependencies.** Do not add a runtime dependency. `@deepseek-ai/cordis` and `react` are
+  optional peer dependencies resolved at runtime. (The browser half also uses
+  `@deepseek-ai/dsh-client-store` at runtime — declare it in `dsh.client.inject`, not in
+  dependencies; `@deepseek-ai/schemastery` was dropped in 1.4.0 along with the host-side schema.)
 * **No build step.** Both halves ship as plain ESM that Node and the browser load directly.
 * **Style:** 2-space indentation, single quotes, semicolons, `camelCase` for variables and
   functions, `UPPER_SNAKE_CASE` for module-level constants.

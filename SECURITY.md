@@ -59,7 +59,8 @@ worth stating precisely, so that reports land in the right place:
 * **Zero runtime dependencies.** There is no third-party supply chain to audit.
 * **No network access.** Neither half opens a socket or issues a request. Hover previews are
   built from data already in the page.
-* **No secrets, no telemetry.** Settings are stored in the local DSH settings document.
+* **No secrets, no telemetry.** Settings are stored in this browser's local storage (key
+  `dsh.chat-locator.settings`) and never leave the machine.
 * **Owned styles only.** All injected CSS is namespaced under one `<style>` element created by
   the plugin (`chat-locator/rail.css`) and removed on cleanup.
 * **No writes to the shipped install.** The plugin never modifies files under the DSH
