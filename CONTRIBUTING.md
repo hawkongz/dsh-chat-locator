@@ -47,7 +47,7 @@ Node.js 20 or newer and nothing else.
 git clone https://github.com/hawkongz/dsh-chat-locator.git
 cd dsh-chat-locator
 
-# 2. Run the test suite (125 assertions, no install step)
+# 2. Run the test suite (127 assertions, no install step)
 node test/verify-client.mjs
 ```
 
@@ -119,22 +119,29 @@ assertion after a deliberate change is expected; update the number, do not loose
 
 ## Releasing
 
-The package is published to npm, which is what makes `dsh plugin --profile web add dsh-chat-locator` work for users.
+The package is published to npm, which is what makes `dsh plugin --profile web add dsh-chat-locator` work for users. **Publishing happens in CI, not on your machine:** `.github/workflows/release.yml` publishes on every `v*` tag push through npm trusted publishing (OIDC) with `--provenance`, and it runs `node test/verify-client.mjs` first, so a tag whose assertions are not all green is never published.
 
 1. Confirm the working tree is clean and `node test/verify-client.mjs` passes.
-2. Bump `version` in `package.json` following semantic versioning.
+2. Bump `version` in `package.json` following semantic versioning, and set `PLUGIN_VERSION` in `client.js` to the same value — the test suite reads `package.json` and fails if the two drift apart.
 3. Update every document that mentions the changed values (see the section above).
-4. Commit, tag, and push:
+4. Commit, tag, and push — the tag push is what starts the publish:
 
 ```bash
-git commit -am "chore: release v1.2.1"
-git tag -a v1.2.1 -m "v1.2.1"
+git commit -am "chore: release v1.4.1"
+git tag -a v1.4.1 -m "v1.4.1"
 git push origin main --follow-tags
 ```
 
-5. Publish and verify that the registry really has it:
+5. Watch the `Release` run in the Actions tab, then verify that the registry really has it:
 
 ```bash
+npm view dsh-chat-locator version
+```
+
+**Fallback: publishing locally.** If CI is unavailable you can still publish from your machine. This path has no OIDC provenance attestation — npm only attaches `--provenance` when it can reach the build service — so prefer CI, and run the test suite first either way:
+
+```bash
+node test/verify-client.mjs
 npm publish
 npm view dsh-chat-locator version
 ```

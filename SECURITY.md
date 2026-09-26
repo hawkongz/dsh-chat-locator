@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | :--- | :--- |
-| 1.2.x | :white_check_mark: |
-| < 1.2 | :x: |
+| 1.4.x | :white_check_mark: |
+| < 1.4 | :x: |
 
 Only the latest release receives fixes. Please reproduce on the newest version before
 reporting.
@@ -41,10 +41,12 @@ worth stating precisely, so that reports land in the right place:
 * Code execution or privilege escalation caused by this plugin's own code
   (`index.js`, `client.js`).
 * Content injected into the page by this plugin that could exfiltrate conversation text.
-  The plugin reads turn text to build hover previews; it must never send it anywhere.
+  The plugin does not read turn text — it only injects CSS that styles the built-in rail, plus the
+  sample strings it renders on its own settings page — and it must never send anything anywhere.
 * Weaknesses in how the plugin resolves its CSS-injection target that could be abused by a
   different, untrusted plugin to inject styles into the DSH page.
-* Settings-document handling that could corrupt or leak the user's DSH settings file.
+* Local-storage handling that could corrupt or leak data beyond the plugin's own
+  `dsh.chat-locator.settings` key.
 
 **Out of scope**
 
@@ -57,8 +59,8 @@ worth stating precisely, so that reports land in the right place:
 ## Design properties relevant to security
 
 * **Zero runtime dependencies.** There is no third-party supply chain to audit.
-* **No network access.** Neither half opens a socket or issues a request. Hover previews are
-  built from data already in the page.
+* **No network access.** Neither half opens a socket or issues a request. Hover previews are the
+  built-in ones, drawn from data already in the page; the plugin only styles them.
 * **No secrets, no telemetry.** Settings are stored in this browser's local storage (key
   `dsh.chat-locator.settings`) and never leave the machine.
 * **Owned styles only.** All injected CSS is namespaced under one `<style>` element created by

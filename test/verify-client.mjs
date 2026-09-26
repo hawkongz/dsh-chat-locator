@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'client.js'), 'utf8');
+/** 版本号，用来钉住「client.js 与 package.json 不会各说各话」。 */
+const packageJson = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8'));
 
 /** 极简 React 桩：工厂只声明组件，不在装载期调用它们。 */
 const reactStub = {
@@ -90,6 +92,7 @@ const { diagnostics } = plugin;
 const {
 	DEFAULTS,
 	GRADIENT_WIDTHS,
+	PLUGIN_VERSION,
 	PREVIEW_FONT_MAX,
 	PREVIEW_FONT_MIN,
 	PREVIEW_WIDTH_MAX,
@@ -129,7 +132,10 @@ const found = discoverRail(railScope);
 check('发现真实轨道的类名前缀', found !== null && found.prefix === 'eGxaPq', JSON.stringify(found?.prefix));
 check('缺少刻度时跳过诱饵框架', discoverRail(decoyWithRailSecond)?.prefix === 'eGxaPq');
 check('没有轨道时返回 null', discoverRail(noRailScope) === null);
-check('没有 document 时返回 null', discoverRail({ querySelectorAll: () => [] }) === null);
+check('空候选列表也返回 null', discoverRail({ querySelectorAll: () => [] }) === null);
+// client.js 是在没有 `document` 的作用域里求值的（Node 里这个全局不存在），
+// 所以无参调用真的走 `typeof document === 'undefined'` 那条分支。
+check('缺少 document 时无参调用返回 null（真正走到 undefined 分支）', typeof document === 'undefined' && discoverRail() === null, `typeof document = ${typeof document}`);
 
 console.log('长度渐变的曲线');
 // 档数：悬停那根 + 每侧 2 格；幂曲线的分母跟着变，所以中间档位全部重算。
@@ -155,7 +161,6 @@ function diagnosticReach() {
 	return reach;
 }
 check('超出渐变范围就是内置普通刻度宽度', gradientWidthAt(3) === 12 && gradientWidthAt(99) === 12);
-check('悬停那根比内置的 18px 预览宽度更长', GRADIENT_WIDTHS[0] === 32);
 
 console.log('railStyleText');
 const base = { ...DEFAULTS, thickness: 5, side: 'right', previewLines: 3, previewFontSize: 12, previewWidth: 300 };
@@ -197,21 +202,28 @@ check('默认 12px / 3 行 → 行高 18、卡片 100px', metricsDefault.lineHei
 check('18px / 6 行 → 行高 27、卡片 208px', JSON.stringify(previewMetrics({ previewFontSize: 18, previewLines: 6 })) === JSON.stringify({ lineHeight: 27, promptSize: 19, promptLineHeight: 29, height: 208 }), JSON.stringify(previewMetrics({ previewFontSize: 18, previewLines: 6 })));
 
 // 刻度长度渐变：锚点是悬停（预览）那根 —— 悬停处 32，向外 21 / 14，
-// 其余保持内置宽度（普通 12 / 未加载 8 / 选中 20）。渐变不碰选中轮。
+// 其余保持内置宽度（普通 12 / 未加载 8 / 选中 20）。邻居规则都带
+// `:not(.P_markActive)`，所以活跃轮即使落在悬停处 1–2 格内也不会被改写。
 // 0.1.7 起内置刻度是 _marks 容器下互为相邻兄弟的 button：选择器走相邻兄弟链，
 // 且每条宽度规则同时把 transform 压回 translateY(-50%)（内置用 scaleX 量宽度）。
 check('悬停（预览）刻度最长（32px）且去掉内置 scaleX', right.includes('.eGxaPq_markPreview::before{width:32px !important;transform:translateY(-50%) !important}'), right);
-check('上下 1 格缩到 21px（下方相邻兄弟 + 上方 :has 反向指）', right.includes('.eGxaPq_markPreview + .eGxaPq_mark::before,.eGxaPq_mark:has(+ .eGxaPq_markPreview)::before{width:21px !important;transform:translateY(-50%) !important}'));
+check('上下 1 格缩到 21px（下方相邻兄弟 + 上方 :has 反向指，且都排除活跃轮）', right.includes('.eGxaPq_markPreview + .eGxaPq_mark:not(.eGxaPq_markActive)::before,.eGxaPq_mark:not(.eGxaPq_markActive):has(+ .eGxaPq_markPreview)::before{width:21px !important;transform:translateY(-50%) !important}'), right);
 // 渐变末端（悬停向外第 2 格）的规则：下方从悬停刻度链 2 个 `+ .P_mark`，
 // 上方用 :has() 经 1 个中间刻度反向指回悬停刻度 —— 两侧都正好落在「距悬停处第 2 格」。
 const ruleEndingWith = (css, tail) => (css.match(new RegExp('[^{}]*' + tail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))) ?? [''])[0];
 const rule14 = ruleEndingWith(right, '{width:14px !important');
-check('悬停向外第 2 格（渐变末端）缩到 14px：下方链 2 格、上方反向指回悬停刻度', rule14 !== '' && rule14.includes('.eGxaPq_markPreview + .eGxaPq_mark + .eGxaPq_mark::before') && rule14.includes('.eGxaPq_mark:has(+ .eGxaPq_mark + .eGxaPq_markPreview)::before'), rule14);
+check('悬停向外第 2 格（渐变末端）缩到 14px：下方链 2 格、上方反向指回悬停刻度', rule14 !== '' && rule14.includes('.eGxaPq_markPreview + .eGxaPq_mark:not(.eGxaPq_markActive) + .eGxaPq_mark:not(.eGxaPq_markActive)::before') && rule14.includes('.eGxaPq_mark:not(.eGxaPq_markActive):has(+ .eGxaPq_mark:not(.eGxaPq_markActive) + .eGxaPq_markPreview)::before'), rule14);
 check('框架加宽到 36px（给 32px 尖端留出裁剪盒）', right.includes('.eGxaPq_frame{width:36px !important}'), right);
 check('左侧轨道同样加宽框架', left.includes('.eGxaPq_frame{width:36px !important}'));
 check('关闭定位条时不加宽框架', !disabled.includes('width:36px'));
 check('更远处不重写长度（沿用内置 12px）', !right.includes('width:12px !important'));
-check('渐变不锚定选中轮（markActive 宽度不被改写）', !right.includes('markActive::before{width'), right);
+// 活跃轮保护：每条距离规则的每个选择器都要带 :not(.P_markActive)。
+// 距离 1 的选择器对里各出现 1 次（共 2），距离 2 的各出现 2 次（共 4）。
+const activeGuard = ':not(.eGxaPq_markActive)';
+const guardCount = (text) => text.split(activeGuard).length - 1;
+const neighborPair1 = ruleEndingWith(right, '{width:21px !important');
+const neighborPair2 = ruleEndingWith(right, '{width:14px !important');
+check('邻居选择器都排除活跃轮（:not(.P_markActive)），活跃轮宽度不再被改写', guardCount(neighborPair1) === 2 && guardCount(neighborPair2) === 4, `${guardCount(neighborPair1)} / ${guardCount(neighborPair2)}`);
 check('左侧轨道同样带长度渐变', left.includes('.eGxaPq_markPreview::before{width:32px !important;transform:translateY(-50%) !important}') && left.includes('width:21px !important') && left.includes('width:14px !important'));
 
 // 长度渐变开关：关掉后整族宽度规则（悬停峰值 + 距离链）与框架加宽一起消失，
@@ -337,9 +349,13 @@ check('覆盖样式按发现的前缀与配置生成', styleTag.textContent.incl
 check('覆盖样式带上曲线渐变的四档长度', [32, 21, 14].every((width) => styleTag.textContent.includes(`width:${width}px !important`)), styleTag.textContent);
 
 const debug = windowApplyStub.__dshChatLocator;
-check('排障钩子暴露版本与状态', debug?.version === '1.4.0' && debug.state().railPrefix === 'eGxaPq' && debug.state().railFound === true, JSON.stringify(debug?.version));
+check('排障钩子暴露版本与状态', debug?.version === PLUGIN_VERSION && debug.state().railPrefix === 'eGxaPq' && debug.state().railFound === true, JSON.stringify(debug?.version));
+// 版本号写在 client.js 与 package.json 两处，漂了就发错版本的包 —— 所以直接从
+// package.json 读，两边对不上就红（不再靠测试里硬编码的版本字符串）。
+check('client.js 的 PLUGIN_VERSION 与 package.json 的 version 一致', PLUGIN_VERSION === packageJson.version, `client.js=${PLUGIN_VERSION} package.json=${packageJson.version}`);
 check('排障钩子带上生效配置（本地持久化值 + 缺省补默认）', debug.state().config.thickness === 4 && debug.state().config.side === 'left' && debug.state().config.previewFontSize === DEFAULTS.previewFontSize && debug.state().config.previewWidth === DEFAULTS.previewWidth, JSON.stringify(debug.state().config));
-check('0.1.7 起排障钩子不再带 settingsStatus（会话暂存链路已移除）', debug.state().settingsStatus === undefined, JSON.stringify(debug.state().settingsStatus));
+// 状态面只有轨道字段：会话暂存链路移除后，settingsStatus 之类的东西不该回来。
+check('排障钩子的状态只报告轨道字段（已无会话暂存状态）', JSON.stringify(Object.keys(debug.state()).sort()) === JSON.stringify(['config', 'railFound', 'railPrefix', 'rules']), JSON.stringify(Object.keys(debug.state()).sort()));
 
 injected.update('thickness', 6);
 check('改动先落本地快照', injected.store.getSnapshot().thickness === 6);
@@ -395,10 +411,26 @@ check('小样每根刻度都用当前粗细', ticksOf(sectionNodes).every((node)
 check('小样刻度按当前轨道侧贴边', ticksOf(sectionNodes).every((node) => node.props.style.left === '10px' && node.props.style.right === undefined));
 check('小样预览卡用当前字号与行高', responseOf(sectionNodes)?.props?.style?.fontSize === '12px' && responseOf(sectionNodes)?.props?.style?.lineHeight === '18px', JSON.stringify(responseOf(sectionNodes)?.props?.style?.fontSize));
 check('小样预览卡用当前宽度', cardOf(sectionNodes)?.props?.style?.width === '360px', JSON.stringify(cardOf(sectionNodes)?.props?.style?.width));
-const legacyNotices = (nodes) => nodes
-	.map((node) => (typeof node?.children?.[0] === 'string' ? node.children[0] : ''))
-	.filter((text) => text.includes('重启一次 DSH 宿主'));
-check('本地持久化模式下不出现「仅本次会话生效」提示', legacyNotices(sectionNodes).length === 0, JSON.stringify(legacyNotices(sectionNodes)));
+// 步进器的可达名：每个 +/- 都要带所在行的名字，否则八个按钮全叫「减小」/「增大」。
+const stepLabels = sectionNodes
+	.filter((node) => node?.type === 'button' && typeof node?.props?.['aria-label'] === 'string' && / (减小|增大)$/.test(node.props['aria-label']))
+	.map((node) => node.props['aria-label']);
+check('四个步进器的 +/- 都带所在行的名字', JSON.stringify(stepLabels) === JSON.stringify([
+	'横线粗细 减小', '横线粗细 增大',
+	'预览正文行数 减小', '预览正文行数 增大',
+	'预览字号 减小', '预览字号 增大',
+	'预览框宽度 减小', '预览框宽度 增大',
+]), JSON.stringify(stepLabels));
+// 设置页只该渲染字典里的文案：任何字典之外的硬编码提示（例如旧版「仅本次会话生效」
+// 那类会话暂存提示）都会让这条断言变红 —— 而不是去 grep 一个早就删掉的字符串。
+const zhDict = dictionaries.at(-1).dicts.zh;
+const dictionaryPatterns = Object.values(zhDict)
+	.filter((value) => typeof value === 'string')
+	.map((value) => new RegExp('^' + value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{value\\\}/g, '\\d+') + '$'));
+const textChildrenOf = (nodes) => nodes.flatMap((node) => (Array.isArray(node?.children) ? node.children.filter((child) => typeof child === 'string') : []));
+const isDictionaryCopy = (text) => /^[0-9−+]+$/.test(text) || dictionaryPatterns.some((pattern) => pattern.test(text));
+const strayCopy = textChildrenOf(sectionNodes).filter((text) => !isDictionaryCopy(text));
+check('设置页只渲染字典里的文案（旧版的会话暂存提示不会偷偷回来）', strayCopy.length === 0, JSON.stringify(strayCopy));
 
 injected.update('previewLines', 6);
 sectionNodes = flatten(Section(injected));

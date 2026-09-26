@@ -15,7 +15,7 @@ before relying on it.
 - [The Problem](#-the-problem)
 - [Claiming Styles, Not Redrawing](#-claiming-styles-not-redrawing)
 - [Settings in the Browser, Not the Host](#-settings-in-the-browser-not-the-host)
-- [Keeping the Preview Plain Text](#-keeping-the-preview-plain-text)
+- [Styling the Built-In Plain-Text Preview](#-styling-the-built-in-plain-text-preview)
 - [The Gradient Curve](#-the-gradient-curve)
 - [Verification Status](#-verification-status)
 - [Known Boundaries](#-known-boundaries)
@@ -51,10 +51,12 @@ configuration. Every declaration carries `!important`, deliberately: the plugin 
 stylesheet during page startup, which can be earlier than `ui-chat`'s own stylesheets, so the
 rules must not depend on insertion order to win.
 
-If the rail has not rendered yet — fewer than two turns, a narrow container, a non-conversation
-view — the plugin does not throw and does not retry in a tight loop. A single
-`MutationObserver` throttled to 400ms adds the rules once the rail appears, and recomputes them
-if the prefix changes.
+If the rail has not rendered yet — fewer than two turns, a non-conversation view — the plugin does
+not throw and does not retry in a tight loop. A single `MutationObserver` on
+`document.documentElement` wakes on every mutation batch, but it stays cheap: the rescan for the
+rail is gated to 400ms, and the override rule text is memoized on its two inputs (the discovered
+prefix and the settings snapshot), so the CSS string is rebuilt only when one of them actually
+changes — never once per mutation batch.
 
 ## 💾 Settings in the Browser, Not the Host
 
@@ -103,23 +105,17 @@ development (the host half cached its module until `dsh web` restarted) no longe
 applies to anything observable — the only live code is the browser half, which the page
 picks up on reload.
 
-## 💬 Keeping the Preview Plain Text
+## 💬 Styling the Built-In Plain-Text Preview
 
-The hover preview is built entirely from the built-in turn outline — the `turnOutline`
-projection plus the navigation items of the loaded window. The plugin introduces no other text
-source. Concretely:
+The hover preview is the built-in one. It is built entirely from the built-in turn outline — the
+`turnOutline` projection plus the navigation items of the loaded window — and it is upstream, not
+this plugin, that reads only text blocks, collapses whitespace runs, and truncates long text with
+an ellipsis. **The plugin never reads turn text**: its CSS decides only how many lines the preview
+shows, its font size and width, the card height, and which side it expands to.
 
-* Only text blocks are read. Thinking content is not a text block, so it cannot reach the
-  preview by construction rather than by filtering.
-* All whitespace runs (`\s+`) collapse to a single space, so a preview can never contain a
-  blank line.
-* Text is truncated with an ellipsis under fixed character budgets (50 for the prompt, 120 for
-  the response).
-
-The plugin decides only how many lines the preview has, its font size and width, the card
-height, and which side it expands to. `white-space: normal` and
-`overflow-wrap: anywhere` pin down the two failure modes that would otherwise come back:
-blank lines produced by wrapping, and horizontal overflow.
+`white-space: normal` and `overflow-wrap: anywhere` are the plugin's own contribution to keeping
+the card readable. They pin down the two failure modes that would otherwise come back: blank lines
+produced by wrapping, and horizontal overflow.
 
 ## 📐 The Gradient Curve
 
@@ -142,10 +138,11 @@ then progressively less, flattening out as it rejoins the rail. Two independent 
 it. `GRADIENT_REACH` is the number of levels, and it is also the denominator of the curve, so
 removing a level recomputes the middle widths rather than simply dropping the last one.
 `GRADIENT_CURVE_EXPONENT` controls how bent the curve is: `1` is a straight line and `2.5` is a
-cliff. Both are currently `2`, which is a coincidence, not a coupling.
+cliff. `GRADIENT_REACH` is currently `3` and the exponent `2`.
 
-The anchor is the hovered tick (`_markPreview`), not the selected turn. The active turn's tick
-(`_markActive`) is never rewritten.
+The anchor is the hovered tick (`_markPreview`), not the selected turn. Every neighbour selector
+carries `:not(.<prefix>_markActive)`, so the active turn's tick (`_markActive`) keeps its built-in
+width even when it sits one or two ticks from the pointer.
 
 ### The 0.1.7 selector rewrite
 
@@ -159,7 +156,8 @@ discovery cannot catch (discovery only checks `_frame` + `_mark`, both of which 
 
 The selectors were rebuilt on the new structure: "distance d below" is
 `.P_markPreview + .P_mark[+ .P_mark]::before`, and "distance d above" walks backwards from the
-candidate with `.P_mark:has([+ .P_mark] + .P_markPreview)::before`.
+candidate with `.P_mark:has([+ .P_mark] + .P_markPreview)::before`; every neighbour `.P_mark` in
+those chains also carries `:not(.P_markActive)`.
 
 0.1.7 also changed how the ticks are measured: `::before` is now `width:20px` plus
 `scaleX(.6/.9/1)` per state instead of a literal width. A width override alone would be
@@ -202,23 +200,24 @@ frame is also the rail's hover and click surface, which is the one visible side 
 
 ## ✅ Verification Status
 
-`node test/verify-client.mjs` runs **125 assertions**, all passing, with no network, no browser,
+`node test/verify-client.mjs` runs **127 assertions**, all passing, with no network, no browser,
 and no install step. Coverage:
 
-* **Rail discovery** — including decoy frames, a missing rail, and a missing `document`.
+* **Rail discovery** — including decoy frames, a missing rail, an empty candidate list, and a real
+  `typeof document === 'undefined'` call.
 * **The gradient** — the width table `32 / 21 / 14`, the decrement sequence `11 / 7 / 2` and its
   monotonicity, the first step pinned to the "bent but not steep" 9–12px band, the peak never
   exceeding the frame width, the frame width equal to peak + 4 = 36px, two affected ticks per
-  side, `12px` from the third tick outward, and `_markActive` never being rewritten.
+  side, `12px` from the third tick outward, and every neighbour selector excluding `_markActive`.
 * **The 0.1.7 selector shape** — the distance rules chaining sibling `.P_mark` buttons (below)
   and the `:has()` back-reference (above), and `transform:translateY(-50%)` pinned next to every
   width so the built-in `scaleX` cannot multiply it.
 * **The gradient switch** — with it off the whole width family and the frame widening disappear
   while thickness, side, and the preview rules stay; the settings-page sample follows the switch
   (all ticks back to 12px, the card margin narrowing, the footnote swapping).
-* **Override CSS generation** — thickness, left and right side, the preview toggle, the height
+* **Override CSS generation** — thickness, left and right side, the height
   variable tracking line count and font size, `line-clamp`, font size paired with line height,
-  the container-clamped width, rule convergence when the preview is off, brace balance, and the
+  the container-clamped width, brace balance, and the
   absence of `undefined` or `NaN`.
 * **Config normalization** — out-of-range clamping, invalid-value fallback, default detection.
 * **The local settings scope, against a stub `createSnapshotStore` with a localStorage back** —
@@ -226,10 +225,11 @@ and no install step. Coverage:
   through on every update, and all seven fields cleared by "Restore defaults".
 * **A full `apply()` against stub services** — dictionary registration, the local scope
   construction, style mounting and refresh on config change, settings page registration
-  (including `order`), and cleanup.
+  (including `order`), `PLUGIN_VERSION` matching `package.json`, and cleanup.
 * **The settings page component rendered directly** — the seven-tick sample, the width sequence
   `12 / 14 / 21 / 32 / 21 / 14 / 12`, the preview card clearing the longest tick by 48px, card
-  heights of 144px / 198px / 252px, and font size, width, and line count following the config.
+  heights of 144px / 198px / 252px, font size, width, and line count following the config, and
+  every stepper button naming its row in the accessible label.
 
 `index.js` is a no-op stub since 1.4.0 and is covered by `node --check` only; the live behavior
 it used to carry (schemastery resolution and settings registration) has no replacement to test.
@@ -271,6 +271,23 @@ The local-storage migration (values surviving a browser restart) and the 0.1.7 s
   browser-local since 1.4.0.)
 
 ## 📚 Version History
+
+### 1.4.1
+
+* **The docs now describe what the plugin actually does.** It styles the built-in plain-text
+  preview and never reads turn text, so the `\s+` collapsing and the 50/120-character
+  truncation budgets credited to it in earlier revisions are upstream behaviour.
+* **The published package ships its documentation.** `docs/`, the `zh-CN/` translation,
+  `CONTRIBUTING.md` and `SECURITY.md` are in `files`, so the links in the README resolve from
+  the tarball; `SECURITY.md` tracks the 1.4 line.
+* **The active turn's tick is excluded from the neighbour rules.** A
+  `:not(.<prefix>_markActive)` guard makes the "the active tick is never resized" claim true
+  instead of merely documented, and the self-check now asserts the guard.
+* **Smaller corrections.** `railPrefix: null` no longer lists a narrow container as a cause
+  (the built-in hides the frame with a container query, so the rail is still found); the length
+  gradient is documented as reach `3` / exponent `2`; the four settings steppers carry
+  distinguishable accessible names; and the override stylesheet text is memoized so a DOM
+  mutation batch no longer rebuilds it.
 
 ### 1.4.0
 

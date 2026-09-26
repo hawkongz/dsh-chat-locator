@@ -3,7 +3,7 @@
  *
  * 目标：把对话页右侧那条「对话定位条」（每轮一枚刻度的轮次轨道）变成可配置、
  * 可持久化的插件能力，并在设置面板里给出「对话定位条」配置页：
- * 横线粗细、轨道左右侧、悬停预览的开关 / 行数 / 字号 / 宽度、悬停处沿轨道收拢的
+ * 横线粗细、轨道左右侧、悬停预览的行数 / 字号 / 宽度、悬停处沿轨道收拢的
  * 刻度长度渐变，以及一键「恢复默认」。
  *
  * 三条实现约束，决定了这里的做法：
@@ -19,10 +19,10 @@
  *    持久化（createSnapshotStore 的 persist，重启浏览器后仍在）；「恢复默认」
  *    逐项 `unset(field)` 清掉用户选择，让字段退回内置默认，
  *    而不是把默认值再写一遍。
- * 3. 悬停预览保持**纯文本**：预览正文来自内置的轮次大纲（`turnOutline` 投影与
- *    已加载窗口的导航项），只取文本块、折叠空白、并按预算截断 —— 不含思考内容、
- *    没有空白行、超长自动省略。本插件不引入任何其它文本来源，只决定它的
- *    开关、行数、字号、宽度与展开方向。
+ * 3. 悬停预览保持**纯文本**：那是内置实现的事 —— 预览正文来自内置的轮次大纲
+ *    （`turnOutline` 投影与已加载窗口的导航项），由它只取文本块、折叠空白、按预算
+ *    截断，所以不含思考内容、没有空白行、超长自动省略。本插件不读也不改写那份
+ *    正文，只决定它的行数、字号、宽度与展开方向。
  *
  * @module dsh-chat-locator/client
  */
@@ -82,7 +82,7 @@ window.__ModuleLoader__.load({
 		/** 覆盖样式标签的标识，便于排障与幂等更新。 */
 		const STYLE_TAG_ID = 'chat-locator/rail.css';
 		/** 版本，随排障钩子一起暴露。 */
-		const PLUGIN_VERSION = '1.4.0';
+		const PLUGIN_VERSION = '1.4.1';
 
 		/** 刻度行高固定 10px（内置轨道约定），8px 是横线粗细的实际上限。 */
 		const THICKNESS_MIN = 1;
@@ -350,8 +350,9 @@ window.__ModuleLoader__.load({
 		 * 折算成 `auto` —— **框架就是刻度的裁剪盒**：画到框架宽度以上，多出来的尖端会被直接裁掉
 		 * （这正是"0 不够突出"的根源）。刻度仍是右对齐，所以普通刻度的位置一点没动，
 		 * 多出来的空间只是左侧的裁剪余量。
-		 * 代价：框架本身就是轨道的悬停/点击面，加宽意味着右侧多出十几像素的隐形交互带，
-		 * 所以这里跟着峰值走 —— 峰值降下来，交互带也一起收窄。
+		 * 代价：框架本身就是轨道的悬停/点击面，加宽 8px（28 → 36）意味着刻度左侧多出
+		 * 8px 的裁剪余量、也一并成为交互面，所以这里跟着峰值走 —— 峰值降下来，这 8px
+		 * 也一起收窄。
 		 */
 		const RAIL_FRAME_WIDTH_PX = GRADIENT_PEAK_PX + 4;
 
@@ -413,14 +414,30 @@ window.__ModuleLoader__.load({
 		 * 用 `.P_mark:has(…)` 从候选刻度反向指向悬停刻度。链尾都落在 `::before`
 		 * 上（宽度与 transform 都写在它上面）。不支持 :has() 的浏览器只是这些
 		 * 规则不生效（长度回到内置值），不会出错。
+		 *
+		 * 邻居选择器都带 `:not(.<prefix>_markActive)`：活跃轮的刻度有内置的 20px
+		 * 宽度，若它恰好落在悬停处 1–2 格内，纯兄弟链会把它一起改短 —— 那既不是
+		 * 用户要的，也是文档里「活跃轮不被改写」这句话的漏洞。悬停那根自身
+		 * （`_markPreview` 规则）不受此限：指针指着它，它就按悬停峰值加长。
 		 */
 		function gradientSelectorPair(prefix, distance) {
 			const mark = '.' + prefix + '_mark';
+			const neighbor = mark + ':not(.' + prefix + '_markActive)';
 			const anchor = '.' + prefix + '_markPreview';
-			const below = [anchor, ...Array.from({ length: distance }, () => '+ ' + mark)].join(' ') + '::before';
-			const aboveChain = [...Array.from({ length: distance - 1 }, () => '+ ' + mark), '+ ' + anchor].join(' ');
-			const above = mark + ':has(' + aboveChain + ')::before';
+			const below = [anchor, ...Array.from({ length: distance }, () => '+ ' + neighbor)].join(' ') + '::before';
+			const aboveChain = [...Array.from({ length: distance - 1 }, () => '+ ' + neighbor), '+ ' + anchor].join(' ');
+			const above = neighbor + ':has(' + aboveChain + ')::before';
 			return below + ',' + above;
+		}
+
+		/**
+		 * 刻度两端的圆角：粗细的一半，夹在 1–4px。
+		 * 设置页样张与真实轨道共用这一处算法，改一处两边同步。
+		 * @param thickness - 刻度粗细（px）。
+		 * @returns 圆角半径（px，整数）。
+		 */
+		function tickRadius(thickness) {
+			return Math.max(1, Math.min(4, Math.round(thickness / 2)));
 		}
 
 		/** 由配置生成覆盖样式：刻度粗细、悬停处的曲线渐变、轨道侧、预览字号/宽度/行数。 */
@@ -430,7 +447,7 @@ window.__ModuleLoader__.load({
 				rules.push('.' + prefix + '_slot{display:none !important}');
 				return rules.join('');
 			}
-			const radius = Math.max(1, Math.min(4, Math.round(config.thickness / 2)));
+			const radius = tickRadius(config.thickness);
 			rules.push('.' + prefix + '_mark::before{height:' + config.thickness + 'px !important;border-radius:' + radius + 'px !important}');
 			if (config.side === 'left') {
 				// 轨道镜像到左侧：框架贴左，刻度改为左对齐，预览改到轨道右边展开。
@@ -488,6 +505,21 @@ window.__ModuleLoader__.load({
 			let frame = null;
 			let lastScan = 0;
 			let text = '';
+			// 规则文本只在「前缀或配置」真的变化时重算。MutationObserver 每个变更批次都会
+			// 回调一次，而每次回调都重拼一遍整段 CSS 是白烧 CPU（流式渲染期间尤甚）；
+			// createStore 只在配置确实不同时才换新的快照对象，所以按对象身份比较即可。
+			// 这里只是记忆化，没有引入任何异步：配置一变仍然同帧写入样式标签。
+			let cachedPrefix = null;
+			let cachedConfig = null;
+			let cachedText = '';
+			const styleTextFor = (discovered, config) => {
+				if (discovered === null) return '';
+				if (discovered === cachedPrefix && config === cachedConfig) return cachedText;
+				cachedPrefix = discovered;
+				cachedConfig = config;
+				cachedText = railStyleText(discovered, config);
+				return cachedText;
+			};
 			const render = () => {
 				const detached = prefix === null || frame === null || !frame.isConnected;
 				if (detached) {
@@ -501,7 +533,7 @@ window.__ModuleLoader__.load({
 						}
 					}
 				}
-				const next = prefix === null ? '' : railStyleText(prefix, policy.settings.getSnapshot());
+				const next = styleTextFor(prefix, policy.settings.getSnapshot());
 				if (next === text) return;
 				text = next;
 				tag.textContent = next;
@@ -679,9 +711,9 @@ window.__ModuleLoader__.load({
 				style: { ...STEP_BUTTON, opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer' },
 			}, text);
 			return React.createElement('div', { style: PILL, role: 'group', 'aria-label': label }, [
-				button('dec', '−', -1, value <= min, t('decrease')),
+				button('dec', '−', -1, value <= min, label + ' ' + t('decrease')),
 				React.createElement('span', { key: 'value', style: STEP_VALUE }, String(value)),
-				button('inc', '+', 1, value >= max, t('increase')),
+				button('inc', '+', 1, value >= max, label + ' ' + t('increase')),
 			]);
 		}
 
@@ -736,7 +768,7 @@ window.__ModuleLoader__.load({
 						[side]: '10px',
 						width: width + 'px',
 						height: config.thickness + 'px',
-						borderRadius: Math.max(1, Math.min(4, Math.round(config.thickness / 2))) + 'px',
+						borderRadius: tickRadius(config.thickness) + 'px',
 						background: hovered ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-border-l2)',
 					},
 				}));
@@ -924,7 +956,7 @@ window.__ModuleLoader__.load({
 			// 排障钩子：控制台执行 __dshChatLocator.state() 可看到发现的类名前缀、当前覆盖规则与生效配置。
 			const debug = {
 				version: PLUGIN_VERSION,
-				state: () => ({ ...presentation.state() }),
+				state: presentation.state,
 			};
 			window.__dshChatLocator = debug;
 			ctx.effect(() => () => {
@@ -948,31 +980,20 @@ window.__ModuleLoader__.load({
 			name: 'chat-locator',
 			inject: ['slots', 'locale'],
 			apply,
-			// 纯函数出口：宿主/测试可直接校验「类名前缀发现」与「覆盖样式生成」，
-			// 不参与运行时行为，也不改变上面的插件形状。
+			// 纯函数出口：自检直接消费下面这些键（类名前缀发现、覆盖样式生成、归一化）。
+			// 不参与运行时行为，也不改变上面的插件形状；加新键时请一并给出读者，
+			// 否则又是不出声的死出口（1.4.1 删掉了 12 条这样的出口）。
 			diagnostics: {
 				DEFAULTS,
-				GRADIENT_BASE_PX,
-				GRADIENT_PEAK_PX,
 				GRADIENT_REACH,
 				GRADIENT_WIDTHS,
-				NS,
 				PLUGIN_VERSION,
-				PREVIEW_CHROME_PX,
 				PREVIEW_FONT_MAX,
 				PREVIEW_FONT_MIN,
-				PREVIEW_LINES_MAX,
-				PREVIEW_LINES_MIN,
-				PREVIEW_LINE_RATIO,
 				PREVIEW_WIDTH_MAX,
 				PREVIEW_WIDTH_MIN,
-				PREVIEW_WIDTH_STEP,
 				RAIL_FRAME_WIDTH_PX,
 				SETTINGS_FIELDS,
-				SETTINGS_NAMESPACE,
-				STYLE_TAG_ID,
-				THICKNESS_MAX,
-				THICKNESS_MIN,
 				discoverRail,
 				gradientWidthAt,
 				normalizeSettings,
