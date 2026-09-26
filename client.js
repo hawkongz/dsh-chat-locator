@@ -82,7 +82,7 @@ window.__ModuleLoader__.load({
 		/** 覆盖样式标签的标识，便于排障与幂等更新。 */
 		const STYLE_TAG_ID = 'chat-locator/rail.css';
 		/** 版本，随排障钩子一起暴露。 */
-		const PLUGIN_VERSION = '1.4.1';
+		const PLUGIN_VERSION = '1.4.2';
 
 		/** 刻度行高固定 10px（内置轨道约定），8px 是横线粗细的实际上限。 */
 		const THICKNESS_MIN = 1;

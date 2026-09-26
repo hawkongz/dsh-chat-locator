@@ -1,6 +1,6 @@
 {
   "name": "dsh-chat-locator",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Turn-rail settings for the DSH Web conversation locator: tick thickness, rail side, a curved length gradient anchored on the hovered tick, and a plain-text hover preview with adjustable line count, font size, and width.",
   "keywords": [
     "dsh",
