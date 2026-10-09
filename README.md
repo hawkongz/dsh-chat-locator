@@ -6,6 +6,7 @@
   ![Platform](https://img.shields.io/badge/Platform-DSH%20Web-lightgrey)
   [![Node.js](https://img.shields.io/badge/Node.js-339933)](https://nodejs.org)
   [![Stars](https://img.shields.io/github/stars/hawkongz/dsh-chat-locator)](https://github.com/hawkongz/dsh-chat-locator)
+  [![npm downloads](https://img.shields.io/npm/dt/dsh-chat-locator)](https://www.npmjs.com/package/dsh-chat-locator)
 
   <p><strong>Language:</strong> <a href="README.md">English</a> | <a href="zh-CN/README.md">简体中文</a></p>
 </div>
