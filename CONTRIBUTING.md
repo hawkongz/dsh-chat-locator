@@ -1,7 +1,7 @@
 # Contributing
 
-Thanks for taking the time to improve `dsh-chat-locator`. This is a small, dependency-free
-plugin, so the contribution loop is short.
+Thanks for taking the time to improve `dsh-chat-locator`. This is a small plugin with no
+bundled dependencies, so the contribution loop is short.
 
 ## Ways to contribute
 
@@ -38,71 +38,57 @@ git push origin feature/your-feature
 
 ## Development environment
 
-**There is nothing to install.** The plugin and its test suite have zero runtime and zero
-development dependencies — `test/verify-client.mjs` stubs the DSH services itself. You need
-Node.js 20 or newer and nothing else.
+**Nothing to install.** Node.js 20+ and a clone — `test/verify-client.mjs` stubs the DSH services
+itself, and there is no build step.
 
 ```bash
-# 1. Clone
 git clone https://github.com/hawkongz/dsh-chat-locator.git
 cd dsh-chat-locator
-
-# 2. Run the test suite (127 assertions, no install step)
-node test/verify-client.mjs
+node test/verify-client.mjs     # 151 assertions
 ```
 
-To exercise the plugin against a real DSH Web instance, install your working copy into a
-profile and restart the host:
+To try it against a real DSH Web instance, install the working copy into a profile and restart the
+host:
 
 ```bash
-# 3. Install the working copy into the `web` profile (pnpm records it as a `link:`)
-dsh plugin --profile web add "$(pwd)"
-
-# 4. Restart the host so the host half is imported
+dsh plugin --profile web add "$(pwd)"   # pnpm records it as a link:
 dsh web
 ```
 
-On Windows (PowerShell), use the absolute path instead:
+On Windows, pass the absolute path instead: `dsh plugin --profile web add "C:\path\to\dsh-chat-locator"`.
 
-```powershell
-dsh plugin --profile web add "C:\path\to\dsh-chat-locator"
-dsh web
-```
+### Which half to reload
 
-### The two-half reload rule
-
-Since 1.4.0 only one half matters for development:
-
-| Changed file | How it takes effect |
+| Changed | Effect |
 | :--- | :--- |
-| `client.js` (browser half) | Automatically. The page re-hashes the client module on reload; just refresh. |
-| `index.js` (host half) | Nothing to reload. It is a no-op stub kept only because the patch row resolves to it; reinstalling or removing the bundle still needs a `dsh web` restart. |
+| `client.js` | Takes effect on page refresh — the page re-hashes the module. |
+| `index.js` | Nothing to reload; it is a no-op stub kept only so the patch row resolves. |
 
-Mounting or unmounting the bundle itself always needs a `dsh web` restart — the composed plugin
-tree is built at startup.
+Installing or removing a bundle needs a `dsh web` restart — the plugin tree is composed at startup.
+Current DSH builds can hot-compose client entries, so re-enabling an already-installed bundle may
+take effect without one, but a restart is the reliable path.
 
 ## Code conventions
 
-* **Zero dependencies.** Do not add a runtime dependency. `@deepseek-ai/cordis` and `react` are
-  optional peer dependencies resolved at runtime. (The browser half also uses
-  `@deepseek-ai/dsh-client-store` at runtime — declare it in `dsh.client.inject`, not in
-  dependencies; `@deepseek-ai/schemastery` was dropped in 1.4.0 along with the host-side schema.)
-* **No build step.** Both halves ship as plain ESM that Node and the browser load directly.
-* **Style:** 2-space indentation, single quotes, semicolons, `camelCase` for variables and
-  functions, `UPPER_SNAKE_CASE` for module-level constants.
-* **CSS is injected, never patched.** All override rules carry `!important` and are owned by
-  the plugin, so they can be removed cleanly. Never write to the shipped DSH install.
-* **Keep the diagnostics surface pure.** `diagnostics` exports in `client.js` must stay free
-  of DOM and service access so the test suite can exercise them without a browser.
-* **UTF-8 only.** Edit these files with a UTF-8-safe editor. Do not round-trip them through
-  PowerShell text cmdlets (`Get-Content -Raw` / `Set-Content`), which mangle non-ASCII
-  content and prepend a BOM.
+* **No bundled dependencies.** React and Cordis are optional peer dependencies resolved from the
+  host. The browser half uses the host-provided `@deepseek-ai/dsh-client-store` (plus `ui-slots`,
+  `ui-settings`, `locale`) — name those in `dsh.client.inject`, never in `dependencies`.
+* **No build step.** Both halves are plain ESM that Node and the browser load directly.
+* **Style:** 2-space indent, single quotes, semicolons, `camelCase` functions and variables,
+  `UPPER_SNAKE_CASE` module constants.
+* **CSS is injected, never patched.** Every override carries `!important` and is owned by the
+  plugin so it can be removed cleanly. Never write to the shipped DSH install.
+* **Keep `diagnostics` pure.** No DOM or service access, so the suite can exercise it without a
+  browser.
+* **UTF-8 only.** Do not round-trip these files through PowerShell text cmdlets
+  (`Get-Content -Raw` / `Set-Content`); they mangle non-ASCII content and add a BOM.
 
 ## Bumping the settings slot
 
-Every revision that should be observable on a live page increments the `order` field of the
-`settings.section` slot registration in `client.js` by one. `order` shows up in the live slot
-tree, so it doubles as a "did the page really load this revision?" probe. If you change
+The `order` field of the `settings.section` slot registration in `client.js` shows up in the live
+slot tree, so it doubles as a "did the page really load this revision?" probe. Earlier revisions
+bumped it by one each release; it is `41` and has not changed since 1.3.0, so bumping it is
+optional — do it only when you need the probe to distinguish a new revision. If you change
 `order`, update the assertion in `test/verify-client.mjs` to match.
 
 ## Test and documentation parity
@@ -119,38 +105,34 @@ assertion after a deliberate change is expected; update the number, do not loose
 
 ## Releasing
 
-The package is published to npm, which is what makes `dsh plugin --profile web add dsh-chat-locator` work for users. **Publishing happens in CI, not on your machine:** `.github/workflows/release.yml` publishes on every `v*` tag push through npm trusted publishing (OIDC) with `--provenance`, and it runs `node test/verify-client.mjs` first, so a tag whose assertions are not all green is never published.
+**Publishing happens in CI, not on your machine.** Push a `v*` tag and
+`.github/workflows/release.yml` does the rest through npm trusted publishing (OIDC) with
+`--provenance`. Before publishing it runs the syntax check and the test suite, refuses a tag that
+does not match `package.json`'s version, and skips a version that is already on the registry.
+There is no manual publish path.
 
-1. Confirm the working tree is clean and `node test/verify-client.mjs` passes.
-2. Bump `version` in `package.json` following semantic versioning, and set `PLUGIN_VERSION` in `client.js` to the same value — the test suite reads `package.json` and fails if the two drift apart.
-3. Update every document that mentions the changed values (see the section above).
-4. Commit, tag, and push — the tag push is what starts the publish:
+1. Working tree clean, `npm test` green.
+2. Bump `version` in `package.json` and set `PLUGIN_VERSION` in `client.js` to the same value —
+   the suite fails if the two drift apart.
+3. Update every doc that mentions the changed values (see [parity](#test-and-documentation-parity)).
+4. Commit, tag, push:
 
-```bash
-git commit -am "chore: release v1.4.1"
-git tag -a v1.4.1 -m "v1.4.1"
-git push origin main --follow-tags
-```
+   ```bash
+   git commit -am "chore: release v1.5.0"
+   git tag -a v1.5.0 -m "v1.5.0"
+   git push origin main --follow-tags
+   ```
 
-5. Watch the `Release` run in the Actions tab, then verify that the registry really has it:
-
-```bash
-npm view dsh-chat-locator version
-```
-
-**Fallback: publishing locally.** If CI is unavailable you can still publish from your machine. This path has no OIDC provenance attestation — npm only attaches `--provenance` when it can reach the build service — so prefer CI, and run the test suite first either way:
-
-```bash
-node test/verify-client.mjs
-npm publish
-npm view dsh-chat-locator version
-```
-
-`publishConfig.registry` in `package.json` pins publishing to the official npm registry, so a mirror configured locally (for example `registry.npmmirror.com`) cannot intercept the upload. There is no build step, and npm adds `LICENSE` and `README.md` to the tarball on top of the `files` list.
-
+5. Watch the `Release` run, then confirm the registry has it:
+   `npm view dsh-chat-locator version`
 6. Create the GitHub release for the tag, with the changelog as the body.
 
-A published version cannot be replaced — npm rejects republishing an existing version — so a mistake in a release needs a new patch version rather than a re-upload.
+A published version cannot be replaced — npm rejects republishing an existing version — so a
+mistake needs a new patch release, not a re-upload.
+
+**Fallback:** if CI is unavailable, `npm test && npm publish` from your machine works, minus the
+OIDC provenance attestation. `publishConfig.registry` pins the official registry in either case,
+so a locally configured mirror cannot intercept the upload.
 
 ## Commit message convention
 

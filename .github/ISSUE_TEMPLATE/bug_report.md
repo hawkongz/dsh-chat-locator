@@ -30,8 +30,9 @@ A clear and concise description of what actually happened.
 
 Open the browser DevTools console and paste the output of the built-in debug hook. This
 single call answers most triage questions (`railPrefix: null` means the rail is not
-rendered in this view; a non-empty `settingsStatus.unsupported` means the host half has
-not registered those fields).
+mounted in this view — fewer than two turns, or a non-conversation view; `railFound: true`
+means the plugin found the rail and applied its stylesheet). The hook reports only
+`railPrefix`, `railFound`, `rules`, and `config`.
 
 ```js
 __dshChatLocator.state()
@@ -50,9 +51,9 @@ If applicable, add screenshots (the rail is easier to judge visually) or error l
 - Operating system: [e.g. Windows 11 24H2, macOS 15.0]
 - DSH version: [run `dsh --version`]
 - DSH profile: [e.g. `web`]
-- dsh-chat-locator version: [e.g. v1.2.0]
+- dsh-chat-locator version: [e.g. v1.5.0 — run `npm view dsh-chat-locator version` for the latest release]
 - Browser: [e.g. Chrome 140, Edge 140]
-- Conversation view that shows the bug: [e.g. right-side rail, narrow window ≤900px]
+- Conversation view that shows the bug: [e.g. right-side rail, left-side rail; include the window width if the layout is involved]
 
 ## Checklist
 

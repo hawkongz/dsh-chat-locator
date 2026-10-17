@@ -36,17 +36,19 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 
 - **Tick thickness (横线粗细):** 1–8px instead of a fixed 2px. Only the line width changes; the 10px tick spacing stays put.
 - **Rail side (轨道位置):** Left or right. The hover preview automatically opens on the opposite side, so it never covers the text you are reading.
-- **Hover preview:** The built-in plain-text card showing that turn's prompt and response. The plugin does not build it — it only styles how many lines it shows, its font size, and its width, and the built-in plain-text rendering (which never includes thinking content) is left alone.
+- **Hover preview:** The built-in plain-text card showing that turn's prompt and response. The plugin does not build it and never reads the text — it only styles the card: line count, font size, width, how tall it may grow, and which side it opens to. The built-in plain-text rendering (which never includes thinking content) is left alone.
 - **Preview line count (预览正文行数):** 1–6 lines. The card really grows — only the overflow is clipped.
 - **Preview font size and width (预览字号 / 预览框宽度):** 10–18px and 200–420px. Font size and line height scale as a pair, so enlarging the text never crowds or clips it.
-- **A curved length gradient:** The tick under the pointer grows to 32px and its neighbours taper back along a curve — `21 / 14 / 12` — so the rail reads as a hook pointing at where you are, not as a straight diagonal. It has its own on/off switch; with it off every tick keeps its built-in width and nothing else changes.
-- **Restore defaults (恢复默认):** All seven settings back to factory values in one click, via per-field `unset` rather than rewriting the defaults.
-- **A dedicated settings page:** Settings → 对话定位条, with a live sample rail and sample preview card that redraw as you change each value.
-- **Zero dependencies, no build step.** Both halves are plain ESM loaded directly by Node and the browser.
+- **A curved length gradient:** The tick under the pointer grows to 32px and its neighbours taper back along a curve — `21 / 14 / 12` — so the rail reads as a hook pointing at where you are, not as a straight diagonal.
+
+  The hovered tick is the anchor even when it is the active turn, and the neighbour rules skip the active tick, so an active turn one or two ticks away keeps its built-in width. The gradient has its own switch: off returns the ticks to their built-in lengths (12px normally, 18px on the hovered tick) and changes nothing else.
+- **Restore defaults (恢复默认):** All seven settings back to factory values in one click. Only deviations from the factory values are stored, so the button is greyed out exactly when there is nothing to clear; clearing takes one write and also drops keys left behind by older versions.
+- **A dedicated settings page:** Settings → Conversation locator (对话定位条 in the Chinese UI), with a live sample rail and sample preview card that redraw as you change each value.
+- **No bundled dependencies, no build step.** Both halves are plain ESM loaded directly by Node and the browser; React, Cordis, and the DSH client modules come from the host, and the only dependency declarations are optional peer dependencies.
 
 ## 🚀 Quick Start
 
-> **What you need:** a working DSH installation (the `dsh` command) with a profile, plus Node.js 20 or newer. The plugin itself has no dependencies to install.
+> **What you need:** a working DSH installation (the `dsh` command) with a profile, plus Node.js 20 or newer. The plugin itself has nothing extra to install.
 
 **Step 1 — Open a terminal**
 
@@ -61,9 +63,18 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 dsh plugin --profile web add dsh-chat-locator
 ```
 
-To pin an exact version instead of tracking new releases, append it: `dsh plugin --profile web add dsh-chat-locator@1.4.1`
+To pin an exact version instead of tracking new releases, append it: `dsh plugin --profile web add dsh-chat-locator@1.5.0`
 
-That is the whole install. The bundle itself is the four files a DSH plugin bundle needs — `package.json` (which declares the bundle and the browser half), `index.js` (the host half — a no-op stub since 1.4.0), `client.js` (the browser half), and `cordis.patch.yml` (the patch that adds the plugin row) — and there is nothing to compile and no dependency to install. Alongside those, the published package also ships this README and its `zh-CN/` translation, `docs/design-notes.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `test/`.
+That is the whole install. A DSH plugin bundle is four files:
+
+| File | Role |
+| :--- | :--- |
+| `package.json` | Declares the bundle and the browser half |
+| `index.js` | Host half — a no-op stub since 1.4.0 |
+| `client.js` | Browser half — all the behaviour |
+| `cordis.patch.yml` | The patch that adds the plugin row |
+
+There is nothing to compile and no bundled dependency to install. The published package also ships this README and its `zh-CN/` translation, `docs/design-notes.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `test/`.
 
 **Step 3 — Restart the host**
 
@@ -71,11 +82,11 @@ That is the whole install. The bundle itself is the four files a DSH plugin bund
 dsh web
 ```
 
-The host process caches imported modules, so a newly added bundle is not mounted until the host restarts once.
+The host process caches imported modules, so a newly installed or removed bundle is not mounted until the host restarts once — restarting is the reliable path. Current DSH builds can hot-compose client entries, so re-enabling an already-installed bundle sometimes takes effect after a page refresh; installing a new one still needs the restart.
 
 **Step 4 — Done.** With DSH Web open at `http://127.0.0.1:3080`, you are finished if:
 
-- **Settings → 对话定位条** appears in the settings sidebar, and
+- **Settings → Conversation locator** (对话定位条 in the Chinese UI) appears in the settings sidebar, and
 - in the browser console, this returns `railFound: true` on a conversation with at least two turns:
 
 ```js
@@ -94,15 +105,15 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 
 | Requirement | Version | Notes |
 | :--- | :--- | :--- |
-| DSH | 0.1.7 or newer | Provides the `dsh` command and the profile you install into. The browser half persists settings through `@deepseek-ai/dsh-client-store`, which earlier versions do not ship. |
+| DSH | 0.2.x (verified on 0.2.1-rc.2) | Provides the `dsh` command and the profile you install into. The rail selector contract has been stable since 0.1.7, but 1.5.0 was developed and verified against DSH 0.2.1-rc.2. The browser half needs the host-provided `@deepseek-ai/dsh-client-store` module (declared in `dsh.client`). |
 | Node.js | 20 or newer | Used by the host half and the test suite. |
-| A browser with `:has()` support | Chromium 105+ | Without it the length gradient does not apply; everything else still works. |
+| A modern browser | current Chromium, Firefox, or Safari | The gradient uses `:is()` and `:has()`. Without `:has()` only the half of the taper *above* the pointer is lost — the hovered tick still lengthens and the ticks below it still taper. Everything else works. |
 
 ### Install methods
 
 | Method | Best for |
 | :--- | :--- |
-| `dsh plugin --profile web add dsh-chat-locator` | Most users. Installs the released version from npm; append `@1.4.1` to pin an exact one. |
+| `dsh plugin --profile web add dsh-chat-locator` | Most users. Installs the released version from npm; append `@1.5.0` to pin an exact one. |
 | `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | The newest commit on `main`, without cloning by hand. Locks a commit rather than a version. |
 | [From a git clone](#install-from-a-git-clone) | Working on the plugin itself. |
 | [From four downloaded files](#install-without-git) | No network access to npm or GitHub, or an offline machine. |
@@ -155,13 +166,13 @@ dsh web
 ### Notes on installation
 
 - **DSH registers the bundle for you.** A package that declares `dsh.bundle.patch` is added to your profile's `dsh.profile.bundles` list automatically, so `dsh plugin add` is the only step.
-- **There is no build step.** pnpm may print a note about blocked build scripts for git-hosted packages; this plugin has no `prepare` script and no dependencies, so there is nothing to allow.
+- **There is no build step.** pnpm may print a note about blocked build scripts for git-hosted packages; this plugin has no `prepare` script and no bundled dependencies, so there is nothing to allow.
 - **Restart the host after installing or removing.** See [How It Works](#-how-it-works) for why.
 - **Installation is per profile.** `--profile web` is the profile this plugin was developed against; substitute your own.
 
 ## 📖 Usage
 
-Everything lives on one settings page: **Settings → 对话定位条**. The table below lists each control with its default and range.
+Everything lives on one settings page: **Settings → Conversation locator** (对话定位条 in the Chinese UI). The table below lists each control with its default and range.
 
 ### Where settings live
 
@@ -175,13 +186,13 @@ Settings are stored in **this browser's local storage** (key `dsh.chat-locator.s
 | Setting | Default | Range | What it does |
 | :--- | :--- | :--- | :--- |
 | Show the locator rail<br>`显示对话定位条` | On | On / Off | Hides the whole rail. Turn jumping and unloaded-turn paging are unaffected. |
-| Length gradient<br>`长度渐变` | On | On / Off | The curved taper that lengthens the hovered tick and its neighbours. Off returns every tick to its built-in width — the rail, jumping, paging, and the preview are untouched. |
+| Length gradient<br>`长度渐变` | On | On / Off | The curved taper that lengthens the hovered tick and its neighbours. Off returns the ticks to their built-in lengths (12px normally, 18px on the hovered tick); the rail, jumping, paging, and the preview are untouched. |
 | Tick thickness<br>`横线粗细` | 2px | 1–8px | The line width of each turn's tick. Tick spacing stays at 10px, so 8px is the practical ceiling. |
 | Rail side<br>`轨道位置` | Right | Left / Right | Which edge of the conversation area the rail hugs. The hover preview opens on the opposite side automatically. |
 | Preview line count<br>`预览正文行数` | 3 | 1–6 | How many lines of the response to show. The card grows with the content; only the overflow is clipped. |
-| Preview font size<br>`预览字号` | 12px | 10–18px | The card's font size. Line height scales with it at 1.5x, and the card height is computed from the same line height, so larger text is never clipped. |
+| Preview font size<br>`预览字号` | 12px | 10–18px | The card's font size. Line height scales with it at 1.5×, and the card height counts both the prompt and body line heights — 100px at 12px / 3 lines, 148px at 16px / 4 lines, 217px at 18px / 6 lines — so larger text is never clipped. |
 | Preview card width<br>`预览框宽度` | 300px | 200–420px | The card's width. It keeps the built-in container clamp, so it shrinks automatically in a narrow window. |
-| Restore defaults<br>`恢复默认` | — | — | Resets all seven settings to their factory values. Disabled when everything is already at its default. |
+| Restore defaults<br>`恢复默认` | — | — | Back to factory values. Only deviations are ever stored, so the button is greyed out exactly when there is nothing to clear; clearing is one write and also drops keys left by older versions. |
 
 ### The length gradient
 
@@ -192,7 +203,14 @@ The tick you point at is the longest, and the ticks around it taper away along a
 | Width | **32px** | 21px | 14px | 12px |
 | Drop per step | — | 11px | 7px | 2px |
 
-The adjacent tick gives up the most width, then progressively less, flattening out as it rejoins the rail. The width table is generated from `12 + 20 * (1 - d/3)^2`, and `docs/design-notes.md` records how the exponent was tuned (2.5 was a cliff, 1.5 left the neighbours too long, 2.0 is the compromise in use). The gradient anchors on the hovered tick, and the neighbour rules carry `:not(.P_markActive)` so the active turn's tick keeps its built-in width even when it sits one or two ticks from the pointer; the whole taper disappears the moment the pointer leaves. Unlike the hover preview (which has no switch, because a rail you cannot preview is not a rail), the gradient is decorative and has its own settings row; switching it off also drops the frame widening, since there is no 32px peak to make room for.
+The adjacent tick gives up the most width, then progressively less, flattening out as it rejoins the rail. The table is generated from `12 + 20 * (1 - d/3)^2`; `docs/design-notes.md` records how the exponent was tuned (2.5 read as a cliff, 1.5 left the neighbours too long, 2.0 is the compromise in use).
+
+Two details worth knowing:
+
+- **The active turn can anchor the taper.** The rule is `:is(.<prefix>_markPreview, .<prefix>_mark:hover)`, and the built-in rail marks a tick as either *active* or *previewed*, never both — so without the `:hover` half the taper vanished whenever you pointed at the turn you were on.
+- **The active turn is never resized as a neighbour.** Every neighbour selector carries `:not(.P_markActive)`, so an active tick one or two places from the pointer keeps its built-in width.
+
+The taper disappears the moment the pointer leaves. Unlike the hover preview — which has no switch, because a rail you cannot preview is not a rail — the gradient is decorative and gets its own settings row; switching it off also drops the frame widening, since there is no 32px peak to make room for.
 
 ### Troubleshooting
 
@@ -201,10 +219,12 @@ The plugin ships one debug hook. Run it in the browser console:
 ```js
 __dshChatLocator.state()
 // {
-//   railPrefix: 'eGxaPq', railFound: true, rules: '…',
+//   railPrefix: 'xpvNua', railFound: true, rules: '…',
 //   config: { … }
 // }
 ```
+
+The prefix is the CSS Module hash of your DSH build — `xpvNua` is what DSH 0.2.1-rc.2 uses — and nothing depends on the value. The hook reports `railPrefix: null` whenever the rail is unmounted.
 
 | What you see | What it means |
 | :--- | :--- |
@@ -216,9 +236,17 @@ __dshChatLocator.state()
 
 Three constraints shaped the implementation, and each one is documented in full — with the experiments behind it — in **[docs/design-notes.md](docs/design-notes.md)**.
 
-1. **The rail is claimed, not redrawn.** It sits in no Slot, so a replacement would have to re-implement turn jumping, unloaded-turn paging, and active-turn following. Instead the plugin discovers the CSS Module prefix at runtime (looking for a `<prefix>_frame` that contains a `<prefix>_mark`) and injects one owned stylesheet of `!important` overrides. If upstream renames those classes, the plugin goes quiet rather than breaking the rail.
-2. **Settings live in the browser, not in a host half.** Up to 1.3.0 the host half registered a `chat-locator` namespace in the DSH settings document and the browser half bound to it. dsh 0.1.7 removed the client `settingsScope` service, so since 1.4.0 the browser half builds its own scope on `createSnapshotStore` from `@deepseek-ai/dsh-client-store`, persisted to local storage under `dsh.chat-locator.settings`. The trade-off is deliberate: settings survive browser restarts but no longer sync across browsers or machines, and anything stored in the DSH settings document by older versions is ignored. `index.js` remains as a no-op stub because the patch row resolves to it — see [docs/design-notes.md](docs/design-notes.md).
-3. **The preview stays plain text.** The card is the built-in one, built from the built-in turn outline and only from text blocks, so thinking content cannot reach it and whitespace runs are collapsed. The plugin does not read or rewrite that text; its CSS only decides how many lines are shown, the font size, the width, and which side the card opens to.
+1. **The rail is claimed, not redrawn.** It sits in no Slot, so a replacement would have to re-implement turn jumping, unloaded-turn paging, and active-turn following. Instead the plugin finds the rail's CSS Module prefix in the live DOM and injects one owned stylesheet of `!important` overrides. If upstream renames those classes, the plugin goes quiet rather than breaking the rail.
+
+   How the prefix is found: look for a whitespace-separated class token ending in `_frame` whose prefix is a safe CSS identifier, then require a `<prefix>_mark` child. Nothing depends on the literal value.
+
+2. **Settings live in the browser, not in a host half.** Up to 1.3.0 the host half registered a `chat-locator` namespace in the DSH settings document and the browser half bound to it. DSH 0.1.7 removed the client `settingsScope` service, so since 1.4.0 the browser half builds its own store on `createSnapshotStore` from `@deepseek-ai/dsh-client-store`, persisted under the local storage key `dsh.chat-locator.settings`.
+
+   The trade-off is deliberate: settings survive browser restarts but no longer sync across browsers or machines, and anything older versions wrote into the DSH settings document is ignored. `index.js` stays as a no-op stub because the patch row resolves to it — see [docs/design-notes.md](docs/design-notes.md).
+
+3. **The preview stays plain text.** The card is the built-in one, built from the built-in turn outline and only from text blocks, so thinking content cannot reach it and whitespace runs are collapsed.
+
+   The plugin does not read or rewrite that text. Its CSS only decides how many lines are shown, the font size, the width, the height, and which side the card opens to.
 
 Known boundaries — the upstream class-name contract, the 900px container cutoff, the 8px interaction strip the widened clip box adds — are listed in the same document.
 
@@ -228,7 +256,7 @@ Known boundaries — the upstream class-name contract, the 900px container cutof
 
 ## 🤝 Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). There is nothing to install: clone the repository and run `node test/verify-client.mjs` to get all 127 assertions.
+See [CONTRIBUTING.md](CONTRIBUTING.md). There is nothing to install: clone the repository and run `node test/verify-client.mjs` to get all 151 assertions, or `npm test` to syntax-check both halves first.
 
 Bug reports and feature requests are welcome — the templates ask for the `__dshChatLocator.state()` output, which answers most triage questions in one paste.
 

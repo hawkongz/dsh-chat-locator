@@ -43,67 +43,68 @@ runtime instead of hardcoding it.
 ## 🔧 Claiming Styles, Not Redrawing
 
 `discoverRail()` walks the live DOM and finds the real CSS Module prefix by pattern: it looks
-for an element matching `[class*="_frame"]` that also contains a `.<prefix>_mark` child. The
-observed prefix is `eGxaPq`, but nothing depends on that value.
+for an element matching `[class*="_frame"]`, splits its `class` attribute into tokens, keeps a
+token ending in `_frame` whose prefix starts with a letter, and requires a `.<prefix>_mark`
+descendant. Inside DSH 0.2.1-rc.2 the rail is
+`nav.<prefix>_frame > div.<prefix>_scroller > div.<prefix>_marks > button.<prefix>_mark`, with
+the preview a sibling of the scroller; the observed prefix on that build is `xpvNua`, and it
+changes between builds, so nothing depends on the value.
 
 `railStyleText(prefix, config)` then generates the override rules from the user's
-configuration. Every declaration carries `!important`, deliberately: the plugin injects its
-stylesheet during page startup, which can be earlier than `ui-chat`'s own stylesheets, so the
-rules must not depend on insertion order to win.
+configuration. Every declaration carries `!important`, deliberately: DSH 0.2.1-rc.2 injects the
+plugin's sheet at head index 16, *before* the built-in `ui-chat` TurnNavigator sheet at index
+115 — the adversarial order — so the rules must not depend on insertion order to win. The same
+order is why the enter animation no longer redeclares the shipped `@keyframes` (a same-name
+redeclaration loses to whichever sheet comes later): it uses an owned keyframes name and
+overrides `animation` with `!important`, so the mirrored animation is order-independent, with
+its own `prefers-reduced-motion` guard.
 
 If the rail has not rendered yet — fewer than two turns, a non-conversation view — the plugin does
 not throw and does not retry in a tight loop. A single `MutationObserver` on
 `document.documentElement` wakes on every mutation batch, but it stays cheap: the rescan for the
 rail is gated to 400ms, and the override rule text is memoized on its two inputs (the discovered
 prefix and the settings snapshot), so the CSS string is rebuilt only when one of them actually
-changes — never once per mutation batch.
+changes — never once per mutation batch. If a mutation batch arrives inside that 400ms gate,
+one delayed rescan is scheduled, so a rail that mounts during the window is still found; the
+timer is cleared on dispose, and re-mounting replaces the plugin's style tag rather than
+stacking a second sheet.
 
 ## 💾 Settings in the Browser, Not the Host
 
-Up to 1.3.0 the plugin had two live halves. The host half, `index.js`, did exactly one
-thing: `ctx.settings.register('chat-locator', schema)`, with defaults and range
-validation in the schema. The browser half then bound to it with
-`ctx.settingsScope.bind({ namespace: 'chat-locator' })`, so every change was written
-into the DSH settings document and survived everything — including a move to another
-machine.
+Up to 1.3.0 there were two live halves: the host half registered a `chat-locator` schema, and the
+browser half bound to it, so settings lived in the DSH settings document and followed you between
+machines. DSH 0.1.7 removed the client `settingsScope` service and with it the host half's only
+job. Since 1.4.0 the browser half owns the settings itself.
 
-dsh 0.1.7 removed the client `settingsScope` service (settings persistence moved to the
-remote.settings system), and with it the only reason the host half existed. Since 1.4.0
-the browser half builds its own scope instead, on `createSnapshotStore` from
-`@deepseek-ai/dsh-client-store` with `persist: { name: 'dsh.chat-locator.settings' }`.
-It is exactly the shape the scope API used to have — `getSnapshot()` / `subscribe()` /
-`set()` / `unset()` — so `LocatorPolicy` needed no change beyond the constructor
-argument:
+**The trade-off, in one line:** settings now survive browser restarts but no longer sync across
+browsers, profiles, or machines, and anything older versions wrote into the settings document is
+ignored — the first run after upgrading shows factory values.
 
-* `getSnapshot()` returns `{ value, status: 'ready', writable: true }`, and `value`
-  always contains every schema field, with defaults filled in for missing keys.
-* `set(field, value)` writes straight through to local storage.
-* `unset(field)` deletes the key; the next snapshot falls back to the default, which
-  is what "Restore defaults" uses — it never writes the defaults back as values.
+Since 1.5.0 the store is one small policy (`createSettingsPolicy()`) over
+`createSnapshotStore` from `@deepseek-ai/dsh-client-store`, persisted under
+`dsh.chat-locator.settings`. Two behaviours are worth knowing, because both were bugs first:
 
-### What that costs
+* **The stored layer holds only deviations from the factory values.** Setting a field back to its
+  default deletes that key. So "the button is greyed out because every value is at its default"
+  and "there is nothing stored to clear" always mean the same thing — otherwise an explicit
+  default-valued key could never be removed by the button meant to remove it.
+* **Every write copies the record before touching it.** `set()` deep-freezes its argument and
+  hands it to zustand, which bails when the new state is the same reference as the old one.
+  Mutating the object from `getSnapshot()` and setting it back notifies nobody and persists
+  nothing — settings looked applied, then reverted on reload. The test stub now models that
+  contract (freeze, then reference bail) and asserts it, so the suite cannot drift back to a
+  permissive fake.
 
-* **Settings are per browser.** They live in this browser's local storage, so they
-  survive restarts of the browser and of DSH Web, but they no longer sync across
-  browsers, profiles, or machines.
-* **The old host settings are ignored.** A `chat-locator:` section left in the DSH
-  settings document by 1.3.0 or older is no longer read, so the first run after
-  upgrading shows factory values. That is the accepted price of the move, and it is
-  documented in both READMEs.
-* **The session-staging machinery is gone.** With a local scope there is no "the host
-  does not know this field yet" state, so the `pending` map, the `unsupported` status,
-  the hostLegacy notice, and the back-fill path were removed rather than left as dead
-  code. `LocatorPolicy` is now subscribe → adopt → update → reset.
+Defaults, ranges, steps, normalization, and each settings row's control type and copy keys all
+live in one `FIELDS` table; `DEFAULTS`, `normalizeSettings()`, and the rendered rows derive from
+it, so a new field is added in one place. `reset()` clears the whole layer in one write, which
+also drops keys left by older versions.
 
 ### Why `index.js` still exists
 
-`cordis.patch.yml` resolves the plugin row (`name: 'dsh-chat-locator'`) to the package
-entry, `main: ./index.js`, so deleting the file would take the whole row down. Since
-1.4.0 the file is a documented no-op stub: no settings registration, no schemastery
-resolution, no host-side services at all. The two-half reload rule that used to govern
-development (the host half cached its module until `dsh web` restarted) no longer
-applies to anything observable — the only live code is the browser half, which the page
-picks up on reload.
+`cordis.patch.yml` resolves the plugin row to the package entry, `main: ./index.js`, so deleting
+the file takes the whole row down. Since 1.4.0 it is a documented no-op stub. Only the browser
+half is live; the page picks it up on reload.
 
 ## 💬 Styling the Built-In Plain-Text Preview
 
@@ -113,240 +114,158 @@ this plugin, that reads only text blocks, collapses whitespace runs, and truncat
 an ellipsis. **The plugin never reads turn text**: its CSS decides only how many lines the preview
 shows, its font size and width, the card height, and which side it expands to.
 
+Card height is derived from the font size and line count:
+`26 + promptLineHeight + lineHeight × lines`, where `lineHeight = round(fontSize × 1.5)`,
+`promptLineHeight = round((fontSize + 1) × 1.5)`, and 26px is 10+10px vertical padding, the 4px
+prompt margin, and 2px of spare. The default 12px / 3 lines stays at the built-in 100px;
+16px / 4 lines is 148px, 18px / 6 lines is 217px, and 10px / 1 line is 58px. Before 1.5.0 the
+height ignored the prompt line height, so the closing line(s) of the card were clipped at larger
+sizes — measured at 7px clipped for 18px / 6 lines.
+
 `white-space: normal` and `overflow-wrap: anywhere` are the plugin's own contribution to keeping
 the card readable. They pin down the two failure modes that would otherwise come back: blank lines
 produced by wrapping, and horizontal overflow.
 
 ## 📐 The Gradient Curve
 
-The tick under the pointer becomes the longest one, and the ticks
-around it taper back to the shipped width:
+The tick under the pointer becomes the longest one; its neighbours taper back toward the shipped
+width.
 
 | Distance from the hovered tick | 0 | ±1 | ±2 | ≥3 |
 | :--- | :--- | :--- | :--- | :--- |
-| Width | 32px | 21px | 14px | 12px |
+| Width | **32px** | 21px | 14px | 12px |
 | Drop per step | — | 11px | 7px | 2px |
 
-The table is generated by `buildGradientWidths()` from a power curve:
-
-```js
-12 + 20 * Math.pow(1 - d / 3, 2)   // d = distance from the hovered tick, 0..2
-```
-
-The result is a hook that bends *toward* the rail: the adjacent tick gives up the most width,
-then progressively less, flattening out as it rejoins the rail. Two independent knobs control
-it. `GRADIENT_REACH` is the number of levels, and it is also the denominator of the curve, so
-removing a level recomputes the middle widths rather than simply dropping the last one.
-`GRADIENT_CURVE_EXPONENT` controls how bent the curve is: `1` is a straight line and `2.5` is a
-cliff. `GRADIENT_REACH` is currently `3` and the exponent `2`.
-
-The anchor is the hovered tick (`_markPreview`), not the selected turn. Every neighbour selector
-carries `:not(.<prefix>_markActive)`, so the active turn's tick (`_markActive`) keeps its built-in
-width even when it sits one or two ticks from the pointer.
-
-### The 0.1.7 selector rewrite
-
-Up to 1.3.0 the built-in rail wrapped every tick in a `_markPosition` element, and the distance
-selectors chained those wrappers as adjacent siblings (`:has(.P_markPreview) + .P_markPosition
-+ .P_markPosition .P_mark::before`). **dsh 0.1.7 removed that wrapper**: the marks are now
-`button.P_mark` elements that are direct adjacent siblings inside `div.P_marks`, and the hovered
-one carries `P_markPreview` itself. The whole distance chain silently matched nothing — the
-gradient was gone with no error anywhere, which is exactly the failure mode the runtime class
-discovery cannot catch (discovery only checks `_frame` + `_mark`, both of which survived).
-
-The selectors were rebuilt on the new structure: "distance d below" is
-`.P_markPreview + .P_mark[+ .P_mark]::before`, and "distance d above" walks backwards from the
-candidate with `.P_mark:has([+ .P_mark] + .P_markPreview)::before`; every neighbour `.P_mark` in
-those chains also carries `:not(.P_markActive)`.
-
-0.1.7 also changed how the ticks are measured: `::before` is now `width:20px` plus
-`scaleX(.6/.9/1)` per state instead of a literal width. A width override alone would be
-multiplied by the built-in scale (32px rendered as 28.8px), so every width rule the plugin
-emits now also pins `transform:translateY(-50%)` — dropping the scaleX makes the width literal
-again, which is the pre-0.1.7 semantic. `transform-origin` becomes irrelevant as a result.
-
-### The gradient switch
-
-The gradient is decorative — a rail without it is still a fully working rail — so it has its own
-settings row (`gradient`, default on), unlike the hover preview whose switch was removed in
-1.3.0. With the gradient off, the entire width family disappears, **including the frame
-widening**: there is no 32px peak to make room for, so the frame stays at the built-in 28px and
-the conversation does not carry the extra invisible interactive strip for nothing. Thickness,
-side, and the preview rules are untouched, and the settings-page sample follows the same switch.
-
-### Tuning history
-
-The exponent was tuned against real screenshots, and each value is recorded so the reasoning
-survives:
+That table comes from one power curve, `12 + 20 * (1 - d/3)^2`. Two knobs shape it:
+`GRADIENT_REACH` (levels, and the curve's denominator — dropping a level recomputes the middle
+widths rather than lopping off the last one) and `GRADIENT_CURVE_EXPONENT` (how bent: `1` is a
+straight line, `2.5` reads as a cliff). They are currently `3` and `2`.
 
 | Exponent | Neighbour widths (±1, ±2) | Verdict |
 | :--- | :--- | :--- |
 | 2.5 | 24, 17 | First step dropped 15px — read as a cliff, not a curve. |
 | 1.5 | 23, 16 | Smooth, but the neighbours stayed too long; the hovered tick did not stand out. |
-| **2.0** | **21, 14** | The compromise in use. First step 11px — still inside the "bent but not steep" 9–12px band — while the hovered tick is 1.52x its neighbour. |
+| **2.0** | **21, 14** | In use. First step 11px — inside the "bent but not steep" 9–12px band — and the hovered tick is 1.52× its neighbour. |
 
-### The clip box
+### Two things that were wrong at first
 
-For a long time the hovered tick appeared not to stand out at all, and the cause was not the
-curve. The built-in rail frame is 28px wide, and the scroller inside it sets
-`overflow-y: auto`. Per the CSS specification, a `visible` value on the other axis computes to
-`auto` in that case — **the frame is the ticks' clip box**. Any peak wider than 28px was
-clipped, so the curve degenerated into a short diagonal.
+**The anchor missed the active turn.** The built-in `TurnMark` puts `markActive` **or**
+`markPreview` on a tick — an `if`/`else`, never both. An anchor of `_markPreview` alone therefore
+matched nothing while you hovered the turn you were on, and the whole taper vanished. The anchor is
+now `:is(.<prefix>_markPreview, .<prefix>_mark:hover)`. Neighbour selectors still carry
+`:not(.<prefix>_markActive)`, so the active tick is never resized *as a neighbour* — measured in
+headless Chrome: hovering it gives 32 / 21 / 14, guard intact.
 
-The plugin therefore widens the frame to "longest tick + 4px" (currently 32 + 4 = 36px). The
-ticks are right-aligned, so nothing moves; the extra width is pure clipping headroom. The
-frame is also the rail's hover and click surface, which is the one visible side effect — see
-[Known Boundaries](#-known-boundaries).
+**The frame clipped the peak.** The built-in frame is 28px wide and its scroller sets
+`overflow-y: auto`; per spec that computes the other axis to `auto`, so **the frame is the ticks'
+clip box**. Anything past 28px was cut off and the curve degenerated into a short diagonal. The
+plugin widens the frame to longest tick + 4px (36px). Ticks stay right-aligned, so nothing moves;
+the extra width is pure headroom. The frame is also the rail's click surface, which is the one
+visible side effect — see [Known Boundaries](#-known-boundaries).
+
+### Left mode, and why it is more than a mirror
+
+The frame's containing block is the rail slot's padding box, which spans the whole conversation
+area, so the built-in `right:12px` mirrors cleanly to `left:12px`. The pre-1.5.0 rule instead
+subtracted the composer-side clearance and measured `left:-20px`, putting the frame outside the
+chat area where the sticky layout clipped it away entirely.
+
+Beyond the frame, four things have to move together: `::before` goes to `left:0` **and** its
+`transform-origin` to `0 50%` (the built-in origin is `100%`, so without this mirror normal ticks
+sit 8px in from the edge, unloaded ones 12px); the keyboard focus ring moves to the left; the
+button keeps the full frame width as the hover/click surface, so only `::before` moves; and the
+preview opens on the right of the rail. The enter animation uses the plugin's own keyframes name
+with `animation !important` and a `prefers-reduced-motion` guard, so it does not depend on
+stylesheet order.
+
+### The gradient switch
+
+The gradient is decorative — the rail works without it — so it has its own row, unlike the hover
+preview whose switch was removed in 1.3.0. Off, the whole width family disappears **including the
+frame widening** (no 32px peak needs room, and the extra invisible click strip goes with it).
+
+Off returns the ticks to their **built-in** lengths, which are not uniform: 12px normally, 8px for
+unloaded turns, 20px for the active turn, and 18px on the hovered tick (the built-in hover state is
+`20px × scaleX(.9)`) — so the settings sample shows an 18px hovered tick, not a flattened 12px
+row.
 
 ## ✅ Verification Status
 
-`node test/verify-client.mjs` runs **127 assertions**, all passing, with no network, no browser,
-and no install step. Coverage:
+`node test/verify-client.mjs` runs **151 assertions** in under a second — no network, no browser,
+no install step. `npm test` syntax-checks both halves first, and the release workflow runs the
+same command before publishing. Everything is exercised against stubs, except the geometry.
 
-* **Rail discovery** — including decoy frames, a missing rail, an empty candidate list, and a real
-  `typeof document === 'undefined'` call.
-* **The gradient** — the width table `32 / 21 / 14`, the decrement sequence `11 / 7 / 2` and its
-  monotonicity, the first step pinned to the "bent but not steep" 9–12px band, the peak never
-  exceeding the frame width, the frame width equal to peak + 4 = 36px, two affected ticks per
-  side, `12px` from the third tick outward, and every neighbour selector excluding `_markActive`.
-* **The 0.1.7 selector shape** — the distance rules chaining sibling `.P_mark` buttons (below)
-  and the `:has()` back-reference (above), and `transform:translateY(-50%)` pinned next to every
-  width so the built-in `scaleX` cannot multiply it.
-* **The gradient switch** — with it off the whole width family and the frame widening disappear
-  while thickness, side, and the preview rules stay; the settings-page sample follows the switch
-  (all ticks back to 12px, the card margin narrowing, the footnote swapping).
-* **Override CSS generation** — thickness, left and right side, the height
-  variable tracking line count and font size, `line-clamp`, font size paired with line height,
-  the container-clamped width, brace balance, and the
-  absence of `undefined` or `NaN`.
-* **Config normalization** — out-of-range clamping, invalid-value fallback, default detection.
-* **The local settings scope, against a stub `createSnapshotStore` with a localStorage back** —
-  rehydrating persisted values on construction, defaults filling missing fields, changes written
-  through on every update, and all seven fields cleared by "Restore defaults".
-* **A full `apply()` against stub services** — dictionary registration, the local scope
-  construction, style mounting and refresh on config change, settings page registration
-  (including `order`), `PLUGIN_VERSION` matching `package.json`, and cleanup.
-* **The settings page component rendered directly** — the seven-tick sample, the width sequence
-  `12 / 14 / 21 / 32 / 21 / 14 / 12`, the preview card clearing the longest tick by 48px, card
-  heights of 144px / 198px / 252px, font size, width, and line count following the config, and
-  every stepper button naming its row in the accessible label.
+What the suite does **not** prove, and what was checked elsewhere:
 
-`index.js` is a no-op stub since 1.4.0 and is covered by `node --check` only; the live behavior
-it used to carry (schemastery resolution and settings registration) has no replacement to test.
+| Area | How it is covered |
+| :--- | :--- |
+| CSS generation, config normalization, settings page | 151 Node assertions against stubs — exact strings and numbers are pinned deliberately, so a deliberate change must update them. |
+| Rendered geometry | Measured in headless Chrome against the exact built-in CSS/DOM, in both the sticky and absolute layout variants. Left mode lands at `chatFrame.x + 12`; ticks align; the hovered active tick tapers 32 / 21 / 14. |
+| Live DSH page | Verified against DSH 0.2.1-rc.2 for layout variant, stylesheet order (plugin before `ui-chat`), and the observed class prefix. |
+| Aesthetics, and the last mile of a live CSS injection | **Not machine-checked.** Whether the arc looks right, and whether the 1.5.0 left-hand CSS injects cleanly into a real conversation, are for your eyes — the headless client could not reopen a multi-turn session for that final check. |
 
-**Not verified, and you should know it:** pixel-level aesthetics — the actual arc of the
-gradient, how the font size and card width feel — have not been checked by a machine, because
-no browser automation was available in the development environment. Judge those with your eyes.
-The local-storage migration (values surviving a browser restart) and the 0.1.7 selector rewrite
-(32 / 21 / 14 / 12px visible again) were both exercised by hand on a live DSH Web instance at
-1.4.0 time; the automated suite covers the same code paths against stubs.
+The Node suite pins generated CSS as text; it renders no page, so it cannot catch cascade,
+hover, or pixel regressions. That is what the headless runs above were for.
 
 ## 🚧 Known Boundaries
 
-* **Upstream coupling.** The only structural contract is "a `<prefix>_frame` that contains
-  `<prefix>_mark` buttons as adjacent siblings", plus the state class `_markPreview` (hover) on
-  the tick itself. The `_markPosition` wrapper the distance selectors used before 0.1.7 is gone
+* **Upstream coupling.** The only structural contract is a class token ending in `_frame` that
+  contains `<prefix>_mark` buttons as adjacent siblings, plus the built-in state classes
+  `_markPreview` (hover) and `_markActive` on the tick itself. The plugin also anchors on the
+  tick's native `:hover`, because the built-in marks carry `_markPreview` **or** `_markActive`,
+  never both. The `_markPosition` wrapper the distance selectors used before 0.1.7 is gone
   upstream and is not coming back. If upstream renames these, the gradient stops working
   silently — no error, and no effect on conversations themselves.
-* **`CSS :has()` is required** for the gradient (Chromium 105+). Browsers without it simply
-  ignore those rules and ticks fall back to the built-in widths.
-* **The rail hides itself below 900px** of container width, via a shipped `@container` rule.
-  The plugin does not force it back.
+* **`CSS :has()` is required for the distance chain** of the gradient (modern Chromium, Firefox,
+  and Safari all ship it). The 32px peak rule and the "below" chain have no `:has()`, so without
+  it the hovered tick still lengthens and ticks below the pointer still taper; only the
+  `:has()`-based "above" chain is skipped.
+* **The rail hides itself at or below 900px** of container width, via a shipped `@container`
+  rule. The plugin does not force it back.
 * **Thickness caps at 8px** because the tick row height is fixed at 10px; thicker ticks would
   overlap each other.
 * **The frame widening has a side effect.** To avoid clipping the 32px peak, the frame goes from
   28px to 36px — but only while the gradient is on. That frame is the rail's hover and click
-  surface, so the invisible interactive strip on the right edge of the conversation is 8px wider:
+  surface, so the invisible interactive strip on the edge of the conversation is 8px wider:
   hovering there shows a preview card, and clicking there jumps to a turn. Switching the gradient
   off removes the widening and the strip returns to its shipped width.
+* **The hovered tick is always the anchor.** The active turn's tick is excluded from the
+  neighbour rules, but when the pointer is over it, it is the anchor itself and grows to 32px.
+  Neighbours still taper 21 / 14.
 * **Preview font size and width affect the card only.** They do not touch the rail's own
   typography or the 28px of layout space it occupies, so enlarging them never squeezes the
   conversation text.
 * **Nothing changes from the third tick outward.** Ticks at distance ≥ 3 keep their built-in
   widths — 12px normally, 8px for unloaded turns, 20px for the active turn — so the rail as a
-  whole still looks like the one DSH ships.
-* **Mounting the bundle needs a host restart.** The composed plugin tree is built at startup, so
-  installing, removing, or re-enabling the bundle only takes effect after `dsh web` restarts — a
-  browser reload is not enough. (The settings themselves no longer wait for anything: they are
-  browser-local since 1.4.0.)
+  whole still looks like the one DSH ships. The neighbour rules do not exclude `_markUnloaded`:
+  within two ticks an unloaded tick is widened to 21 / 14px; from distance 3 outward it keeps the
+  built-in 8px.
+* **Installing or removing the bundle needs a host restart.** The composed plugin tree is built
+  at startup, so installing or removing the bundle takes effect after `dsh web` restarts — a
+  browser reload alone is not the reliable path. Current DSH builds can hot-compose client
+  entries, so re-enabling an already-installed bundle can show up without one; restarting remains
+  the safe answer. (The settings themselves no longer wait for anything: they are browser-local
+  since 1.4.0.)
 
 ## 📚 Version History
 
-### 1.4.1
+Full detail for every release lives in the repository's git log and GitHub releases. Below is
+the short version — what changed for a user, and which version to upgrade to.
 
-* **The docs now describe what the plugin actually does.** It styles the built-in plain-text
-  preview and never reads turn text, so the `\s+` collapsing and the 50/120-character
-  truncation budgets credited to it in earlier revisions are upstream behaviour.
-* **The published package ships its documentation.** `docs/`, the `zh-CN/` translation,
-  `CONTRIBUTING.md` and `SECURITY.md` are in `files`, so the links in the README resolve from
-  the tarball; `SECURITY.md` tracks the 1.4 line.
-* **The active turn's tick is excluded from the neighbour rules.** A
-  `:not(.<prefix>_markActive)` guard makes the "the active tick is never resized" claim true
-  instead of merely documented, and the self-check now asserts the guard.
-* **Smaller corrections.** `railPrefix: null` no longer lists a narrow container as a cause
-  (the built-in hides the frame with a container query, so the rail is still found); the length
-  gradient is documented as reach `3` / exponent `2`; the four settings steppers carry
-  distinguishable accessible names; and the override stylesheet text is memoized so a DOM
-  mutation batch no longer rebuilds it.
+| Version | What it means for you |
+| :--- | :--- |
+| **1.5.0** | The current release. Four fixes you can feel: hovering the turn you are on now tapers the gradient (before, that taper vanished); left mode is actually visible and its ticks line up (before, the rail sat outside the chat area, clipped); a larger preview font no longer clips the last line; settings now survive a reload reliably (a write-path bug could silently drop them). Also: one settings table instead of three parallel lists, re-mount no longer stacks a second stylesheet, and a malformed stored value falls back to defaults instead of throwing. |
+| 1.4.3 | No behaviour change — the first release published by CI with npm provenance. |
+| 1.4.2 | No behaviour change — published locally while the trusted-publisher setup was pending, so it carries no provenance. |
+| 1.4.1 | Docs corrected to describe what the plugin actually does, package ships its own docs, and the active turn's tick was excluded from the neighbour rules. |
+| 1.4.0 | Settings moved into the browser (they no longer touch the DSH settings document), and the host half became a no-op stub. The gradient selectors were rewritten for DSH 0.1.7's DOM. |
+| 1.3.0 | The hover-preview on/off switch was removed: the rail exists to be previewed. |
+| 1.2.0 | The curved, longer gradient with the widened clip box; preview font size and card width; "Restore defaults". |
+| 1.1.0 | Preview line count actually took effect; the gradient anchored on the hovered tick. |
 
-### 1.4.0
-
-* **Settings moved into the browser.** dsh 0.1.7 removed the client `settingsScope` service, so
-  the browser half now persists its configuration with `createSnapshotStore`
-  (`@deepseek-ai/dsh-client-store`) under the local storage key `dsh.chat-locator.settings`.
-  Settings survive browser restarts but no longer sync across browsers or machines, and any
-  `chat-locator:` section left in the DSH settings document by older versions is ignored — the
-  first run after upgrading shows factory values. "Restore defaults" still clears each field
-  individually through `unset`.
-* **The host half became a stub.** With nothing left to register, `index.js` is a no-op kept only
-  because the patch row resolves to it; the schemastery peer dependency is gone.
-* **The gradient selectors were rewritten for 0.1.7.** The built-in rail dropped the
-  `_markPosition` wrapper — ticks are now sibling `button.P_mark` elements — so every distance
-  rule matched nothing and the curve silently vanished. The chain now walks siblings below and
-  back-references with `:has()` above, and each width rule pins `transform:translateY(-50%)`
-  because 0.1.7 measures ticks as `20px × scaleX(.6/.9/1)` instead of literal widths.
-* **The length gradient got its own switch.** It is decorative — off returns the shipped look
-  with the rail, jumping, paging, and preview untouched — so `gradient` (default on) joins the
-  settings page, the sample, and "Restore defaults". Switching it off also drops the frame
-  widening, since no 32px peak needs room.
-* **Dead code removed.** The session-staging (`pending`) path, the `unsupported` status, the
-  "host settings document unavailable / read-only / legacy" notices and their strings, and the
-  back-fill logic are all gone. `LocatorPolicy` is now subscribe → adopt → update → reset, and the
-  debug hook no longer reports a settings status.
-
-### 1.3.0
-
-* **The hover preview toggle is gone.** The rail exists to be browsed, and a switch that turns
-  the preview off works against the feature it belongs to — with previews off the rail shows
-  tick positions and nothing else. The preview, its length gradient, and the settings sample
-  card are now unconditional. The only surviving master switch is "Show the conversation
-  locator", which hides the whole rail. The `preview` field was removed from the settings
-  schema; a stored `preview: false` is ignored rather than migrated.
-
-### 1.2.0
-
-1. **A longer, curved length gradient, with the clip box opened up.** The gradient went from 4
-   levels (24 / 20 / 16 / 12) to 6, then back down to 4 levels (32 / 21 / 14 / 12) over two
-   rounds of "one level fewer", affecting 2 ticks per side. The levels are computed from the
-   power curve, and the frame width is overridden from 28px to 36px so the peak is not clipped.
-   The anchor is the hovered (preview) tick; the active turn's width is not rewritten.
-2. **Preview font size and preview card width.** Font size and line height are rewritten as a
-   pair, because the built-in line height is a fixed pixel value and changing only the font size
-   would crowd the lines. Card height is `46px + lineHeight * lines`, so the 12px / 3-line
-   default is exactly the built-in 100px and the default appearance is unchanged, while 18px /
-   6 lines is 208px. Width reuses the built-in `width: min(Npx, 100cqw - 120px)` form, so a
-   narrow window cannot push the card off screen.
-3. **"Restore defaults".** All six fields are `unset` individually, which clears the user
-   layer and falls back to the schema defaults rather than writing the defaults back as values.
-   When every field is already at its default, the button is disabled and says so.
-
-### 1.1.0
-
-* The preview line count actually takes effect — the height variable tracks both line count and
-  font size.
-* The length gradient anchors on the preview state rather than on the selected turn.
-
----
+If you are upgrading from 1.3.x or older: settings are now browser-local, so any `chat-locator:`
+section in the DSH settings document is ignored and you will see factory values on first run.
+Set them once more on the settings page.
 
 ## 📄 License
 

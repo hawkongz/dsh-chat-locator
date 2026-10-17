@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | :--- | :--- |
-| 1.4.x | :white_check_mark: |
-| < 1.4 | :x: |
+| 1.5.x | :white_check_mark: |
+| < 1.5 | :x: |
 
 Only the latest release receives fixes. Please reproduce on the newest version before
 reporting.
@@ -54,11 +54,13 @@ worth stating precisely, so that reports land in the right place:
   those to the respective upstream project.
 * Anything requiring an already-compromised machine, a malicious browser extension, or
   physical access.
-* The plugin's dependency tree — it has none by design.
+* The plugin's dependency tree — it bundles none by design; React, Cordis, and the DSH client
+  modules come from the host.
 
 ## Design properties relevant to security
 
-* **Zero runtime dependencies.** There is no third-party supply chain to audit.
+* **No bundled runtime dependencies.** React, Cordis, and the DSH client modules are provided
+  by the host, so there is no third-party supply chain of the plugin's own to audit.
 * **No network access.** Neither half opens a socket or issues a request. Hover previews are the
   built-in ones, drawn from data already in the page; the plugin only styles them.
 * **No secrets, no telemetry.** Settings are stored in this browser's local storage (key

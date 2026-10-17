@@ -1,6 +1,6 @@
 {
   "name": "dsh-chat-locator",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "Turn-rail settings for the DSH Web conversation locator: tick thickness, rail side, a curved length gradient anchored on the hovered tick, and a plain-text hover preview with adjustable line count, font size, and width.",
   "keywords": [
     "dsh",
@@ -47,7 +47,7 @@
     "test"
   ],
   "scripts": {
-    "test": "node test/verify-client.mjs"
+    "test": "node --check index.js && node --check client.js && node test/verify-client.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -75,7 +75,6 @@
       "platform": "web",
       "immediately": true,
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-store",
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-settings",

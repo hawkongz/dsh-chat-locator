@@ -3,7 +3,11 @@ name: Release
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
+
+# 同一 tag 的重复推送（或重跑）串行执行；发布步骤本身已对「版本已存在」做兜底。
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -19,10 +23,10 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      # 发布前先跑测试：断言不全绿就没有后面的发布。
-      - run: node test/verify-client.mjs
+      # 发布前先跑语法检查与自检：断言不全绿就没有后面的发布。
+      - run: node --check index.js && node --check client.js && node test/verify-client.mjs
 
-      # tag 必须与 package.json 的 version 对上，否则手动 dispatch 会拿当前分支乱发。
+      # tag 必须与 package.json 的 version 对上（发布入口只有 tag 推送，这里兜一层手滑）。
       - name: Tag matches package.json
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -56,7 +60,7 @@ jobs:
             exit 0
           fi
           # registry 索引有传播延迟：上面那次探测可能没看到刚发布的版本，于是这里会撞上
-          # “版本已存在”。那不是故障，跳过即可（v1.4.5 就踩过这一次）。
+          # “版本已存在”。那不是故障，跳过即可（1.4.x 的重复发布上踩过）。
           if grep -q 'cannot publish over the previously published versions' /tmp/npm-publish.log; then
             echo "::notice::this version is already on the registry — nothing to publish"
             exit 0

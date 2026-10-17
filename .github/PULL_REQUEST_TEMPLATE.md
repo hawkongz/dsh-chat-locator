@@ -35,11 +35,12 @@ Manually tested scenarios:
 ## Screenshots (required for visual changes)
 
 Paste before/after screenshots of the rail. State the window width, because the built-in
-rail hides itself below 900px and the preview card is clamped to the container.
+rail hides itself at or below 900px of container width and the preview card is clamped to the
+container.
 
 ## Checklist
 
-- [ ] The code follows the project conventions (zero runtime dependencies, ESM, 2-space indent).
+- [ ] The code follows the project conventions (no bundled dependencies, ESM, 2-space indent).
 - [ ] I added or updated tests for the change.
 - [ ] All documentation that mentions the changed values is updated.
 - [ ] The commit message follows [Conventional Commits](https://www.conventionalcommits.org/).
