@@ -106,16 +106,19 @@ assertion after a deliberate change is expected; update the number, do not loose
 ## Releasing
 
 **Publishing happens in CI, not on your machine.** Push a `v*` tag and
-`.github/workflows/release.yml` does the rest through npm trusted publishing (OIDC) with
-`--provenance`. Before publishing it runs the syntax check and the test suite, refuses a tag that
-does not match `package.json`'s version, and skips a version that is already on the registry.
-There is no manual publish path.
+`.github/workflows/release.yml` does the rest: it publishes through npm trusted publishing (OIDC)
+with `--provenance`, then creates the GitHub release for the tag. Before publishing it runs the
+syntax check and the test suite, refuses a tag that does not match `package.json`'s version, and
+skips a version that is already on the registry. There is no manual publish path.
 
 1. Working tree clean, `npm test` green.
 2. Bump `version` in `package.json` and set `PLUGIN_VERSION` in `client.js` to the same value —
    the suite fails if the two drift apart.
 3. Update every doc that mentions the changed values (see [parity](#test-and-documentation-parity)).
-4. Commit, tag, push:
+4. Write `release-notes/v1.5.0.md`: the first line is `# <release title>`, then the body in
+   the shape of the earlier releases (English first, then 简体中文). CI turns that file into the
+   GitHub release for the tag; without it you get GitHub's generated notes instead.
+5. Commit, tag, push:
 
    ```bash
    git commit -am "chore: release v1.5.0"
@@ -123,9 +126,9 @@ There is no manual publish path.
    git push origin main --follow-tags
    ```
 
-5. Watch the `Release` run, then confirm the registry has it:
-   `npm view dsh-chat-locator version`
-6. Create the GitHub release for the tag, with the changelog as the body.
+6. Watch the `Release` run: it publishes to npm, then creates the GitHub release for the tag (an
+   existing release is left alone). Confirm both — `npm view dsh-chat-locator version` and the
+   [releases page](https://github.com/hawkongz/dsh-chat-locator/releases).
 
 A published version cannot be replaced — npm rejects republishing an existing version — so a
 mistake needs a new patch release, not a re-upload.

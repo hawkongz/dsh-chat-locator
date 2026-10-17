@@ -66,3 +66,33 @@ jobs:
             exit 0
           fi
           exit 1
+
+  # npm 那边只是包，Release 页才是人看的变更记录：tag 推上来就补一个，已存在的不覆盖。
+  # 正文取 release-notes/<tag>.md（首行 `# 标题` 作为 Release 标题）；没有该文件时退回
+  # GitHub 按提交生成的说明。与 publish 分开成 job，是为了只给创建 Release 的那一步
+  # 开放 contents: write，发布步骤仍只有 contents: read（1.5.0 之前 Release 页一直空着，
+  # 就是漏了这一步）。
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the GitHub release for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "::notice::release ${tag} already exists — leaving it alone"
+            exit 0
+          fi
+          notes="release-notes/${tag}.md"
+          if [ -f "${notes}" ]; then
+            title="$(sed -n '1s/^#[[:space:]]*//p' "${notes}")"
+            gh release create "${tag}" --verify-tag --title "${title:-${tag}}" --notes-file "${notes}"
+          else
+            gh release create "${tag}" --verify-tag --title "${tag}" --generate-notes
+          fi
