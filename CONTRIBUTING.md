@@ -97,7 +97,8 @@ If your change alters user-visible numbers (the gradient width table, the previe
 height, a default, a range), update **all** of these in the same pull request:
 
 * `test/verify-client.mjs` — add or update the assertion that pins the new value.
-* `README.md` and `zh-CN/README.md` — the settings table and the gradient explanation.
+* `README.md` (Chinese, the default view) and `README.en.md` (English) — the settings table and
+  the gradient explanation.
 * `docs/design-notes.md` and `zh-CN/docs/design-notes.md` — the tuning history and rationale.
 
 The test suite intentionally asserts on exact numbers such as `[32, 21, 14]`. A failing

@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/hawkongz/dsh-chat-locator/blob/main/docs/design-notes.md
     about: Why the plugin injects CSS instead of re-rendering the rail, and what breaks when upstream renames a class.
   - name: Settings reference
-    url: https://github.com/hawkongz/dsh-chat-locator/blob/main/README.md#-usage
+    url: https://github.com/hawkongz/dsh-chat-locator/blob/main/README.en.md#-usage
     about: Every setting, its default, its range, and what it changes on screen.

@@ -20,7 +20,7 @@ Closes #123
 
 - [ ] `node test/verify-client.mjs` passes (paste the assertion count below).
 - [ ] I manually checked the changed behavior in DSH Web.
-- [ ] If this changes the gradient table, I updated `README.md`, `zh-CN/README.md`,
+- [ ] If this changes the gradient table, I updated `README.md` (Chinese), `README.en.md`,
       `docs/design-notes.md`, and `zh-CN/docs/design-notes.md`.
 
 Manually tested scenarios:
