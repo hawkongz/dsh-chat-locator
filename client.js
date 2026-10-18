@@ -1,5 +1,5 @@
 /**
- * dsh-chat-locator —— 浏览器半侧（DSH Web）。
+ * dsh-chat-locator —— 浏览器半侧（DSH 页面）。
  *
  * 目标：把对话页右侧那条「对话定位条」（每轮一枚刻度的轮次轨道）变成可配置、
  * 可持久化的插件能力，并在设置面板里给出「对话定位条」配置页：
@@ -37,7 +37,7 @@ window.__ModuleLoader__.load({
 		const STYLE_TAG_ID = 'chat-locator/rail.css';
 
 		/** 版本，随排障钩子一起暴露；与 package.json 的 version 由自检钉住。 */
-		const PLUGIN_VERSION = '1.5.0';
+		const PLUGIN_VERSION = '1.5.1';
 
 		/** 轨道未出现时的重扫间隔（毫秒）；避免在流式渲染期间反复遍历 DOM。 */
 		const RESCAN_INTERVAL_MS = 400;

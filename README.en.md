@@ -1,9 +1,9 @@
 <div align="center">
   <h1>dsh-chat-locator</h1>
-  <p>Turn-rail settings for DSH Web: tick thickness, rail side, and a curved length gradient anchored on the hovered tick — plus a plain-text hover preview whose line count, font size, and width you control.</p>
+  <p>Turn-rail settings for DSH: tick thickness, rail side, and a curved length gradient anchored on the hovered tick — plus a plain-text hover preview whose line count, font size, and width you control.</p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-  ![Platform](https://img.shields.io/badge/Platform-DSH%20Web-lightgrey)
+  ![Platform](https://img.shields.io/badge/Platform-DSH-lightgrey)
   [![Node.js](https://img.shields.io/badge/Node.js-339933)](https://nodejs.org)
   [![Stars](https://img.shields.io/github/stars/hawkongz/dsh-chat-locator)](https://github.com/hawkongz/dsh-chat-locator)
   [![npm downloads](https://img.shields.io/npm/dt/dsh-chat-locator)](https://www.npmjs.com/package/dsh-chat-locator)
@@ -28,7 +28,7 @@
 
 ---
 
-DSH Web draws a turn rail down the edge of every conversation: one tick per turn, so you can see where you are in a long session and jump between turns. It is a good rail with three opinions baked into it. Ticks are always 2px. The rail always sits on the right. And pointing at a tick tells you nothing about what that turn contains, so finding a specific turn in a long conversation means hovering ticks one at a time.
+DSH draws a turn rail down the edge of every conversation: one tick per turn, so you can see where you are in a long session and jump between turns. It is a good rail with three opinions baked into it. Ticks are always 2px. The rail always sits on the right. And pointing at a tick tells you nothing about what that turn contains, so finding a specific turn in a long conversation means hovering ticks one at a time.
 
 None of that is configurable. The rail is rendered directly by `ChatView` inside `@deepseek-ai/dsh-client-ui-chat`; the Slot system gives it no seat, and no setting for thickness or side is exposed anywhere.
 
@@ -65,7 +65,7 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 dsh plugin --profile web add dsh-chat-locator
 ```
 
-To pin an exact version instead of tracking new releases, append it: `dsh plugin --profile web add dsh-chat-locator@1.5.0`
+To pin an exact version instead of tracking new releases, append it: `dsh plugin --profile web add dsh-chat-locator@1.5.1`
 
 That is the whole install. A DSH plugin bundle is four files:
 
@@ -86,7 +86,7 @@ dsh web
 
 The host process caches imported modules, so a newly installed or removed bundle is not mounted until the host restarts once — restarting is the reliable path. Current DSH builds can hot-compose client entries, so re-enabling an already-installed bundle sometimes takes effect after a page refresh; installing a new one still needs the restart.
 
-**Step 4 — Done.** With DSH Web open at `http://127.0.0.1:3080`, you are finished if:
+**Step 4 — Done.** With DSH open at `http://127.0.0.1:3080`, you are finished if:
 
 - **Settings → Conversation locator** (对话定位条 in the Chinese UI) appears in the settings sidebar, and
 - in the browser console, this returns `railFound: true` on a conversation with at least two turns:
@@ -115,7 +115,7 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 
 | Method | Best for |
 | :--- | :--- |
-| `dsh plugin --profile web add dsh-chat-locator` | Most users. Installs the released version from npm; append `@1.5.0` to pin an exact one. |
+| `dsh plugin --profile web add dsh-chat-locator` | Most users. Installs the released version from npm; append `@1.5.1` to pin an exact one. |
 | `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | The newest commit on `main`, without cloning by hand. Locks a commit rather than a version. |
 | [From a git clone](#install-from-a-git-clone) | Working on the plugin itself. |
 | [From four downloaded files](#install-without-git) | No network access to npm or GitHub, or an offline machine. |
@@ -184,7 +184,7 @@ Everything lives on one settings page: **Settings → Conversation locator** (�
 
 Settings are stored in **this browser's local storage** (key `dsh.chat-locator.settings`), written the moment you change a value:
 
-- They survive closing and restarting the browser, and refreshing DSH Web.
+- They survive closing and restarting the browser, and refreshing DSH.
 - They do **not** sync across browsers, profiles, or machines — each browser keeps its own copy.
 - Clearing the site's data (or using a private window, or another browser) starts from factory values again.
 - Since 1.4.0 the plugin no longer reads the DSH settings document, so any `chat-locator:` section left there by 1.3.0 or older is ignored. After upgrading, the first run shows factory values.

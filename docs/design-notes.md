@@ -25,7 +25,7 @@ before relying on it.
 
 ## 🔍 The Problem
 
-DSH Web draws a turn rail — one tick per conversation turn — down the right edge of a
+DSH draws a turn rail — one tick per conversation turn — down the right edge of a
 conversation. It is rendered by `ChatView` inside `@deepseek-ai/dsh-client-ui-chat`, directly
 into the conversation scroll container (`TurnNavigator`). The Slot system gives it no seat, and
 it exposes no configuration for tick thickness or which side the rail sits on.
@@ -254,7 +254,8 @@ the short version — what changed for a user, and which version to upgrade to.
 
 | Version | What it means for you |
 | :--- | :--- |
-| **1.5.0** | The current release. Four fixes you can feel: hovering the turn you are on now tapers the gradient (before, that taper vanished); left mode is actually visible and its ticks line up (before, the rail sat outside the chat area, clipped); a larger preview font no longer clips the last line; settings now survive a reload reliably (a write-path bug could silently drop them). Also: one settings table instead of three parallel lists, re-mount no longer stacks a second stylesheet, and a malformed stored value falls back to defaults instead of throwing. |
+| **1.5.1** | The current release. No behaviour change: a documentation release. The README now opens in Chinese (English moved to `README.en.md`), it gained screenshots of the settings page and the length gradient, and the badge row carries the Awesome DSH Plugin and powered-by-dsh badges. The "Web" qualifier is gone from the title, the platform badge and `package.json`'s description — DSH runs in the browser and as the desktop app, and this plugin works in both. A repo-root `screenshots.json` hands the two captures to the Awesome DSH Plugin listing. Published so npm's package page shows the same README — npm renders the published tarball's copy, which cannot be edited after the fact. |
+| 1.5.0 | Four fixes you can feel: hovering the turn you are on now tapers the gradient (before, that taper vanished); left mode is actually visible and its ticks line up (before, the rail sat outside the chat area, clipped); a larger preview font no longer clips the last line; settings now survive a reload reliably (a write-path bug could silently drop them). Also: one settings table instead of three parallel lists, re-mount no longer stacks a second stylesheet, and a malformed stored value falls back to defaults instead of throwing. |
 | 1.4.3 | No behaviour change — the first release published by CI with npm provenance. |
 | 1.4.2 | No behaviour change — published locally while the trusted-publisher setup was pending, so it carries no provenance. |
 | 1.4.1 | Docs corrected to describe what the plugin actually does, package ships its own docs, and the active turn's tick was excluded from the neighbour rules. |

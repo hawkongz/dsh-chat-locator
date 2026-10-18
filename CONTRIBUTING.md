@@ -47,7 +47,7 @@ cd dsh-chat-locator
 node test/verify-client.mjs     # 151 assertions
 ```
 
-To try it against a real DSH Web instance, install the working copy into a profile and restart the
+To try it against a real DSH instance, install the working copy into a profile and restart the
 host:
 
 ```bash

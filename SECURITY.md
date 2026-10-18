@@ -33,7 +33,7 @@ us a reasonable window to ship a fix before publishing details.
 ## Scope and threat model
 
 `dsh-chat-locator` is a local UI plugin. It runs with the privileges of the user who installed
-it, inside the DSH Web page and the DSH host process. The relevant attack surface is small and
+it, inside the DSH client page and the DSH host process. The relevant attack surface is small and
 worth stating precisely, so that reports land in the right place:
 
 **In scope**

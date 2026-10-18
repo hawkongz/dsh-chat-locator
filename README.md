@@ -1,9 +1,9 @@
 <div align="center">
   <h1>dsh-chat-locator · 对话定位条</h1>
-  <p>DSH Web 轮次轨道的配置插件：刻度粗细、轨道左右侧、锚在悬停那根的曲线长度渐变，以及行数 / 字号 / 宽度都可调的纯文本悬停预览。</p>
+  <p>DSH 轮次轨道的配置插件：刻度粗细、轨道左右侧、锚在悬停那根的曲线长度渐变，以及行数 / 字号 / 宽度都可调的纯文本悬停预览。</p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-  ![Platform](https://img.shields.io/badge/Platform-DSH%20Web-lightgrey)
+  ![Platform](https://img.shields.io/badge/Platform-DSH-lightgrey)
   [![Node.js](https://img.shields.io/badge/Node.js-339933)](https://nodejs.org)
   [![Stars](https://img.shields.io/github/stars/hawkongz/dsh-chat-locator)](https://github.com/hawkongz/dsh-chat-locator)
   [![下载量](https://img.shields.io/npm/dt/dsh-chat-locator?label=%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/dsh-chat-locator)
@@ -28,7 +28,7 @@
 
 ---
 
-DSH Web 会沿对话区边缘画一条轮次轨道：每轮对话一枚刻度，让你在长会话里看得见位置、跳得动轮次。这条轨道做得不错，但它把三个主张钉死在代码里 —— 刻度永远是 2px；轨道永远在右侧；把指针搁在刻度上，它不会告诉你那一轮讲了什么。于是想在一次长对话里找回某一轮，只能一根一根地悬停过去。
+DSH 会沿对话区边缘画一条轮次轨道：每轮对话一枚刻度，让你在长会话里看得见位置、跳得动轮次。这条轨道做得不错，但它把三个主张钉死在代码里 —— 刻度永远是 2px；轨道永远在右侧；把指针搁在刻度上，它不会告诉你那一轮讲了什么。于是想在一次长对话里找回某一轮，只能一根一根地悬停过去。
 
 这三件事都没有开关。轨道由 `@deepseek-ai/dsh-client-ui-chat` 的 `ChatView` 直接渲染，Slot 系统没有给它留座位，界面上也没有任何地方暴露粗细与轨道侧的设置。
 
@@ -65,7 +65,7 @@ DSH Web 会沿对话区边缘画一条轮次轨道：每轮对话一枚刻度，
 dsh plugin --profile web add dsh-chat-locator
 ```
 
-想锁死某个版本、不跟新版本走，就带上版本号：`dsh plugin --profile web add dsh-chat-locator@1.5.0`
+想锁死某个版本、不跟新版本走，就带上版本号：`dsh plugin --profile web add dsh-chat-locator@1.5.1`
 
 装完就完了。DSH 插件 bundle 就是四个文件：
 
@@ -86,7 +86,7 @@ dsh web
 
 宿主进程会缓存已导入的模块，所以新装或卸载的 bundle 要等宿主重启一次才会挂载 —— 重启是最可靠的方式。当前的 DSH 版本能热合成客户端条目，所以重新启用一个已装好的 bundle 有时刷新页面就生效；但新装仍然需要重启。
 
-**第四步 — 完成。** 打开 DSH Web（`http://127.0.0.1:3080`），满足下面两条就算装好了：
+**第四步 — 完成。** 打开 DSH（`http://127.0.0.1:3080`），满足下面两条就算装好了：
 
 - 设置侧栏里出现了 **对话定位条**（英文界面为 Conversation locator）；
 - 在一个至少两轮的对话里，浏览器控制台执行下面这行返回 `railFound: true`：
@@ -115,7 +115,7 @@ __dshChatLocator.state()
 
 | 方式 | 适合谁 |
 | :--- | :--- |
-| `dsh plugin --profile web add dsh-chat-locator` | 大多数人。从 npm 装已发布的版本；带 `@1.5.0` 可以锁死具体版本。 |
+| `dsh plugin --profile web add dsh-chat-locator` | 大多数人。从 npm 装已发布的版本；带 `@1.5.1` 可以锁死具体版本。 |
 | `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | 想直接跟 `main` 上最新提交、又不想手动 clone。锁的是 commit，不是版本号。 |
 | [用 git clone 安装](#用-git-clone-安装) | 要改这个插件本身。 |
 | [下载四个文件后安装](#不用-git-安装) | 访问不到 npm 或 GitHub，或者要离线安装。 |
@@ -184,7 +184,7 @@ dsh web
 
 设置保存在**此浏览器的本地存储**里（键 `dsh.chat-locator.settings`），改动的当场写入：
 
-- 关闭再重启浏览器、刷新 DSH Web，都在。
+- 关闭再重启浏览器、刷新 DSH，都在。
 - **不会**跨浏览器、跨 profile、跨设备同步 —— 每个浏览器各存一份。
 - 清除站点数据、用隐私窗口、或换一个浏览器，都会回到出厂值。
 - 1.4.0 起插件不再读 DSH 设置文档，1.3.0 及更早版本写在设置文档里的 `chat-locator:` 段会被忽略。升级后首次打开看到的是出厂值。
