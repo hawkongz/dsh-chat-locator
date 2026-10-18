@@ -177,7 +177,7 @@ Everything lives on one settings page: **Settings → Conversation locator** (�
 
 ![The plugin's settings page, Settings → Conversation locator](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/settings-page.png)
 
-<sub>**Settings → Conversation locator.** Every row is live — the page's sample rail and sample card redraw as you change a value. The numbers shown here are one user's picks; the defaults are in the table below.</sub>
+<sub>**Settings → Conversation locator** (Chinese UI shown — the plugin ships both locales). Every row is live: the sample rail and sample card redraw as you change a value. The numbers above are one user's picks; the defaults are in the table below.</sub>
 
 ### Where settings live
 

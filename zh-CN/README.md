@@ -177,7 +177,7 @@ dsh web
 
 ![插件设置页「设置 → 对话定位条」](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/settings-page.png)
 
-<sub>**设置 → 对话定位条。** 每一行都是实时的 —— 页面上的示例轨道与预览卡会跟着改。图中数字是某位用户的调法，默认值见下表。</sub>
+<sub>**设置 → 对话定位条。** 每一行都是实时的：页面上的示例轨道与预览卡会跟着改。图中数字是某位用户的调法，默认值见下表。</sub>
 
 ### 设置存在哪里
 
