@@ -8,6 +8,7 @@
   [![Stars](https://img.shields.io/github/stars/hawkongz/dsh-chat-locator)](https://github.com/hawkongz/dsh-chat-locator)
   [![npm downloads](https://img.shields.io/npm/dt/dsh-chat-locator)](https://www.npmjs.com/package/dsh-chat-locator)
   [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/hawkongz/dsh-chat-locator/)
+  [![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
   <p><strong>Language:</strong> <a href="README.md">English</a> | <a href="zh-CN/README.md">简体中文</a></p>
 </div>
@@ -274,5 +275,3 @@ This plugin is listed on the community-curated **Awesome DSH Plugin** list: [haw
 ## 📄 License
 
 [MIT](LICENSE)
-
-[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
