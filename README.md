@@ -7,6 +7,7 @@
   [![Node.js](https://img.shields.io/badge/Node.js-339933)](https://nodejs.org)
   [![Stars](https://img.shields.io/github/stars/hawkongz/dsh-chat-locator)](https://github.com/hawkongz/dsh-chat-locator)
   [![npm downloads](https://img.shields.io/npm/dt/dsh-chat-locator)](https://www.npmjs.com/package/dsh-chat-locator)
+  [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/hawkongz/dsh-chat-locator/)
 
   <p><strong>Language:</strong> <a href="README.md">English</a> | <a href="zh-CN/README.md">简体中文</a></p>
 </div>
@@ -74,7 +75,7 @@ That is the whole install. A DSH plugin bundle is four files:
 | `client.js` | Browser half — all the behaviour |
 | `cordis.patch.yml` | The patch that adds the plugin row |
 
-There is nothing to compile and no bundled dependency to install. The published package also ships this README and its `zh-CN/` translation, `docs/design-notes.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `test/`.
+There is nothing to compile and no bundled dependency to install. The published package also ships this README and its `zh-CN/` translation, `docs/design-notes.md`, the screenshots in `docs/images/`, `CONTRIBUTING.md`, `SECURITY.md`, and `test/`.
 
 **Step 3 — Restart the host**
 
@@ -174,6 +175,10 @@ dsh web
 
 Everything lives on one settings page: **Settings → Conversation locator** (对话定位条 in the Chinese UI). The table below lists each control with its default and range.
 
+![The plugin's settings page, Settings → Conversation locator](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/settings-page.png)
+
+<sub>**Settings → Conversation locator.** Every row is live — the page's sample rail and sample card redraw as you change a value. The numbers shown here are one user's picks; the defaults are in the table below.</sub>
+
 ### Where settings live
 
 Settings are stored in **this browser's local storage** (key `dsh.chat-locator.settings`), written the moment you change a value:
@@ -202,6 +207,10 @@ The tick you point at is the longest, and the ticks around it taper away along a
 | :--- | :--- | :--- | :--- | :--- |
 | Width | **32px** | 21px | 14px | 12px |
 | Drop per step | — | 11px | 7px | 2px |
+
+![The rail with the pointer on a tick: the hovered tick at full length, its neighbours tapering](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/rail-gradient.png)
+
+<sub>The rail with the pointer on a tick: the white anchor is at its 32px peak, the two ticks either side step back to 21px and 14px, and the rest keep the built-in width.</sub>
 
 The adjacent tick gives up the most width, then progressively less, flattening out as it rejoins the rail. The table is generated from `12 + 20 * (1 - d/3)^2`; `docs/design-notes.md` records how the exponent was tuned (2.5 read as a cliff, 1.5 left the neighbours too long, 2.0 is the compromise in use).
 
@@ -260,6 +269,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). There is nothing to install: clone the r
 
 Bug reports and feature requests are welcome — the templates ask for the `__dshChatLocator.state()` output, which answers most triage questions in one paste.
 
+This plugin is listed on the community-curated **Awesome DSH Plugin** list: [hawkongz/dsh-chat-locator](https://awesome-dsh-plugin.com/p/hawkongz/dsh-chat-locator/) (list source [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin), entry file `data/plugins/hawkongz__dsh-chat-locator.yml`).
+
 ## 📄 License
 
 [MIT](LICENSE)
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

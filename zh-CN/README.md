@@ -7,6 +7,7 @@
   [![Node.js](https://img.shields.io/badge/Node.js-339933)](https://nodejs.org)
   [![Stars](https://img.shields.io/github/stars/hawkongz/dsh-chat-locator)](https://github.com/hawkongz/dsh-chat-locator)
   [![下载量](https://img.shields.io/npm/dt/dsh-chat-locator?label=%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://www.npmjs.com/package/dsh-chat-locator)
+  [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/hawkongz/dsh-chat-locator/)
 
   <p><strong>语言：</strong> <a href="../README.md">English</a> | <a href="README.md">简体中文</a></p>
 </div>
@@ -74,7 +75,7 @@ dsh plugin --profile web add dsh-chat-locator
 | `client.js` | 浏览器半侧 —— 所有行为都在这里 |
 | `cordis.patch.yml` | 把插件行插进配置树的 patch |
 
-没有东西要编译，也没有内置依赖要装。发布出去的包里还带这份 README 与 `zh-CN/` 中文版、`docs/design-notes.md`、`CONTRIBUTING.md`、`SECURITY.md` 与 `test/`。
+没有东西要编译，也没有内置依赖要装。发布出去的包里还带这份 README 与 `zh-CN/` 中文版、`docs/design-notes.md`、`docs/images/` 里的截图、`CONTRIBUTING.md`、`SECURITY.md` 与 `test/`。
 
 **第三步 — 重启宿主**
 
@@ -174,6 +175,10 @@ dsh web
 
 所有配置都在一个页面里：**设置 → 对话定位条**（英文界面为 Conversation locator）。下表列出每个控件、默认值与可选范围。
 
+![插件设置页「设置 → 对话定位条」](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/settings-page.png)
+
+<sub>**设置 → 对话定位条。** 每一行都是实时的 —— 页面上的示例轨道与预览卡会跟着改。图中数字是某位用户的调法，默认值见下表。</sub>
+
 ### 设置存在哪里
 
 设置保存在**此浏览器的本地存储**里（键 `dsh.chat-locator.settings`），改动的当场写入：
@@ -202,6 +207,10 @@ dsh web
 | :--- | :--- | :--- | :--- | :--- |
 | 宽度 | **32px** | 21px | 14px | 12px |
 | 每格递减 | — | 11px | 7px | 2px |
+
+![轨道上的长度渐变：悬停那根最长，两侧依次收回](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/rail-gradient.png)
+
+<sub>指针停在某根刻度上：白色尖端是 32px 的峰值，左右两根依次退到 21px / 14px，其余保持内置宽度。</sub>
 
 紧挨悬停那格掉得最多，之后越来越缓，最后贴着轨道收尾。宽度表由 `12 + 20 * (1 - d/3)^2` 算出；幂次是怎么调出来的记在[设计说明](docs/design-notes.md)里（2.5 像断崖，1.5 邻居偏长，2.0 是现在用的折中）。
 
@@ -260,6 +269,10 @@ __dshChatLocator.state()
 
 欢迎提 Bug 与需求 —— 模板里会要 `__dshChatLocator.state()` 的输出，一次粘贴就能回答大部分排查问题。
 
+本插件收录于社区精选列表 **Awesome DSH Plugin**：[hawkongz/dsh-chat-locator](https://awesome-dsh-plugin.com/p/hawkongz/dsh-chat-locator/)（列表源仓库 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)，条目文件 `data/plugins/hawkongz__dsh-chat-locator.yml`）。
+
 ## 📄 许可证
 
 本项目基于 [MIT](../LICENSE) 协议开源。
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
