@@ -127,7 +127,6 @@ To uninstall: sidebar **Plugins** → **Installed plugins** → **Uninstall**, t
 | Node.js | 20 or newer | Used by the host half and the test suite. |
 | A modern browser | current Chromium, Firefox, or Safari | The gradient uses `:is()` and `:has()`. Without `:has()` only the half of the taper *above* the pointer is lost — the hovered tick still lengthens and the ticks below it still taper. Everything else works. |
 
-
 ### Install methods
 
 | Method | Best for |
