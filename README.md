@@ -19,6 +19,7 @@
 
 - [功能特性](#-功能特性)
 - [快速开始](#-快速开始)
+- [桌面端（DSH Desktop）](#桌面端dsh-desktop)
 - [安装](#-安装)
 - [使用方法](#-使用方法)
 - [实现要点](#-实现要点)
@@ -51,6 +52,8 @@ DSH 会沿对话区边缘画一条轮次轨道：每轮对话一枚刻度，让�
 ## 🚀 快速开始
 
 > **前置条件：** 一份可用的 DSH 安装（有 `dsh` 命令）和一个 profile，外加 Node.js 20 或更新版本。插件本身没有额外要安装的东西。
+>
+> 用**桌面端**（DSH Desktop）的话，这几步用不上：桌面端在应用里装，不敲命令，也不需要 pnpm 与 Node.js —— 见 [桌面端（DSH Desktop）](#桌面端dsh-desktop)。
 
 **第一步 — 打开终端**
 
@@ -101,6 +104,26 @@ __dshChatLocator.state()
 >
 > **想跟仓库最新代码、要一份能自己改的本地副本，或者要离线安装？** 见[安装方式](#安装方式)。
 
+### 桌面端（DSH Desktop）
+
+浏览器版和桌面版装的是同一个包、行为也一样，只有装法不同：桌面端在应用里装，不敲命令，也不需要 pnpm 与 Node.js。
+
+侧栏 **插件** → **添加插件**，把 `dsh-chat-locator` 填进「包名或地址」，点 **安装**，然后**彻底退出应用再打开**（桌面端同样只在进程启动时读插件，关窗口不算）。
+
+![桌面端「添加插件」对话框](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/desktop-add-plugin.png)
+
+<sub>侧栏 → 插件 → 添加插件：包名就是上面 `dsh plugin add` 后面那一段。</sub>
+
+装了**插件市场**（dsh-market）的话，也可以直接在「发现」里搜 `dsh-chat-locator` 点安装 —— 市场卡片里带的就是本插件设置页与长度渐变那两张截图。
+
+![在插件市场里搜索 dsh-chat-locator](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/desktop-plugin-market.png)
+
+<sub>插件市场（dsh-market）的「发现」页：搜包名，点安装，装完同样要彻底退出应用再打开。</sub>
+
+装好后检查方法和浏览器版一样：设置里出现 **对话定位条**，把指针沿对话区边缘的轨道上下滑一次，悬停那根变长、两侧依次收回。
+
+卸载走界面：侧栏 **插件** → 在「已安装插件」里找到它 → **卸载**，然后彻底退出应用再打开。
+
 ## 📦 安装
 
 ### 环境要求
@@ -111,11 +134,14 @@ __dshChatLocator.state()
 | Node.js | 20 或更新 | 宿主半侧与测试套件用它。 |
 | 现代浏览器 | 当前版本的 Chromium / Firefox / Safari | 渐变用 CSS `:is()` 与 `:has()`。没有 `:has()` 时只有指针**上方**那一半收拢失效 —— 悬停那根照样会变长，指针下方的刻度也照样收拢。其余功能照常。 |
 
+用桌面端（DSH Desktop）时只需要第一行的 DSH 本体和它内嵌的浏览器内核：**Node.js 与 pnpm 都不需要**，装法见[桌面端（DSH Desktop）](#桌面端dsh-desktop)。
+
 ### 安装方式
 
 | 方式 | 适合谁 |
 | :--- | :--- |
-| `dsh plugin --profile web add dsh-chat-locator` | 大多数人。从 npm 装已发布的版本；带 `@1.5.1` 可以锁死具体版本。 |
+| 桌面端侧栏 **插件** → **添加插件** | 桌面版（DSH Desktop）用户。不敲命令、不用 pnpm，见[桌面端（DSH Desktop）](#桌面端dsh-desktop)。 |
+| `dsh plugin --profile web add dsh-chat-locator` | 浏览器版的大多数人。从 npm 装已发布的版本；带 `@1.5.1` 可以锁死具体版本。 |
 | `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | 想直接跟 `main` 上最新提交、又不想手动 clone。锁的是 commit，不是版本号。 |
 | [用 git clone 安装](#用-git-clone-安装) | 要改这个插件本身。 |
 | [下载四个文件后安装](#不用-git-安装) | 访问不到 npm 或 GitHub，或者要离线安装。 |
@@ -240,6 +266,8 @@ __dshChatLocator.state()
 | :--- | :--- |
 | `railPrefix: null` | 当前视图还没渲染轨道 —— 不足两轮，或不是会话视图。没有出错。 |
 | 设置撑不过重启浏览器 | 设置只存在这个浏览器的本地存储里。换浏览器、用隐私窗口、或清除了站点数据，都会回到出厂值 —— 没有跨设备同步。 |
+| 桌面端里执行 `dsh plugin --profile desktop add …` 报 `profile "desktop" is managed exclusively by the Electron application` | 桌面端不走命令行，只能在应用内装，见[桌面端（DSH Desktop）](#桌面端dsh-desktop)。 |
+| 桌面端装完没看到设置页 | 桌面端只在进程启动时读插件：**彻底退出应用**再打开（只关窗口不算），然后到侧栏 **插件** → 「已安装插件」里确认它在列表里。 |
 | 1.3.0 及更早版本设置的值不见了 | 1.4.0 起设置只落浏览器，DSH 设置文档里的 `chat-locator:` 段不再被读取。在设置页里再设一次即可。 |
 
 ## 🧠 实现要点

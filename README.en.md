@@ -19,6 +19,7 @@
 
 - [Features](#-features)
 - [Quick Start](#-quick-start)
+- [Desktop (DSH Desktop)](#desktop-dsh-desktop)
 - [Installation](#-installation)
 - [Usage](#-usage)
 - [How It Works](#-how-it-works)
@@ -51,6 +52,8 @@ None of that is configurable. The rail is rendered directly by `ChatView` inside
 ## 🚀 Quick Start
 
 > **What you need:** a working DSH installation (the `dsh` command) with a profile, plus Node.js 20 or newer. The plugin itself has nothing extra to install.
+>
+> On the **desktop app** (DSH Desktop) none of these steps apply: plugins are installed inside the app, with no terminal, no pnpm and no Node.js — see [Desktop (DSH Desktop)](#desktop-dsh-desktop).
 
 **Step 1 — Open a terminal**
 
@@ -101,6 +104,26 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 >
 > **Want the newest unreleased commit, a local copy you can edit, or an offline install?** See [Install methods](#install-methods).
 
+### Desktop (DSH Desktop)
+
+The browser and the desktop app install the same package and behave the same way; only the install path differs. On the desktop app you install from inside the app — no terminal, no pnpm, no Node.js.
+
+Sidebar **Plugins** → **Add plugin**, put `dsh-chat-locator` in the package field, click **Install**, then **quit the app completely and open it again** (the desktop app also reads plugins only at process start, so closing the window is not enough).
+
+![The desktop "Add plugin" dialog](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/desktop-add-plugin.png)
+
+<sub>Sidebar → Plugins → Add plugin: the package name is the part after `dsh plugin add` above.</sub>
+
+With the **plugin market** (dsh-market) installed you can also search for `dsh-chat-locator` under **Discover** and install it from there — the card shows the same two screenshots (settings page and length gradient) as this README.
+
+![Searching for dsh-chat-locator in the plugin market](https://raw.githubusercontent.com/hawkongz/dsh-chat-locator/main/docs/images/desktop-plugin-market.png)
+
+<sub>The plugin market (dsh-market) Discover tab: search the package name, install, then quit and reopen the app.</sub>
+
+To verify, do what you do in the browser: **Settings → Conversation locator** appears, and sliding the pointer up and down the rail makes the hovered tick grow while its neighbours taper.
+
+To uninstall, use the UI: sidebar **Plugins** → find it under **Installed plugins** → **Uninstall**, then quit the app completely and open it again.
+
 ## 📦 Installation
 
 ### Requirements
@@ -111,11 +134,14 @@ Open a conversation and slide the pointer up and down the rail: the tick under t
 | Node.js | 20 or newer | Used by the host half and the test suite. |
 | A modern browser | current Chromium, Firefox, or Safari | The gradient uses `:is()` and `:has()`. Without `:has()` only the half of the taper *above* the pointer is lost — the hovered tick still lengthens and the ticks below it still taper. Everything else works. |
 
+On the desktop app (DSH Desktop) only the DSH requirement applies, plus the browser engine it embeds: **neither Node.js nor pnpm is needed**. See [Desktop (DSH Desktop)](#desktop-dsh-desktop).
+
 ### Install methods
 
 | Method | Best for |
 | :--- | :--- |
-| `dsh plugin --profile web add dsh-chat-locator` | Most users. Installs the released version from npm; append `@1.5.1` to pin an exact one. |
+| Sidebar **Plugins** → **Add plugin** | Desktop app (DSH Desktop) users. No terminal, no pnpm — see [Desktop (DSH Desktop)](#desktop-dsh-desktop). |
+| `dsh plugin --profile web add dsh-chat-locator` | Most browser users. Installs the released version from npm; append `@1.5.1` to pin an exact one. |
 | `dsh plugin --profile web add github:hawkongz/dsh-chat-locator` | The newest commit on `main`, without cloning by hand. Locks a commit rather than a version. |
 | [From a git clone](#install-from-a-git-clone) | Working on the plugin itself. |
 | [From four downloaded files](#install-without-git) | No network access to npm or GitHub, or an offline machine. |
@@ -240,6 +266,8 @@ The prefix is the CSS Module hash of your DSH build — `xpvNua` is what DSH 0.2
 | :--- | :--- |
 | `railPrefix: null` | The rail is not rendered in this view — fewer than two turns, or a non-conversation view. Nothing is broken. |
 | Settings do not survive a browser restart | They are kept in this browser's local storage. Another browser, a private window, or cleared site data starts from factory values — there is no cross-device sync. |
+| The desktop app rejects `dsh plugin --profile desktop add …` with `profile "desktop" is managed exclusively by the Electron application` | That command does not work there — install from inside the app, see [Desktop (DSH Desktop)](#desktop-dsh-desktop). |
+| Installed on the desktop app but there is no settings page | The desktop app reads plugins only at process start: **quit it completely** and reopen (closing the window is not enough), then check sidebar **Plugins** → **Installed plugins**. |
 | Values you set in 1.3.0 or older are gone | Since 1.4.0 settings live in the browser only; the `chat-locator:` section of the DSH settings document is no longer read. Set them once more on the settings page. |
 
 ## 🧠 How It Works
